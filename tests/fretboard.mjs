@@ -125,9 +125,9 @@ export async function run(browser, base, log) {
     }
     if (labels.length) pass(`${name}: targets name the finger`);
 
-    // Two neighbouring strings at one fret join into a single target, since two
-    // fingertips at 7.3mm fight each other on glass. Three never do — that is a
-    // different chord shape, not a convenience.
+    // Two neighbouring strings at one fret share a finger, since two fingertips
+    // at 7.3mm fight each other on glass. Never three under one finger, so A's
+    // run of three comes out as a pair plus a single, not one wide bar.
     const shapeOf = async (pick) => {
       await page.locator('.fb-pick', { hasText: new RegExp(`^${pick}$`) }).first().click();
       await page.waitForTimeout(200);
@@ -137,8 +137,18 @@ export async function run(browser, base, log) {
     const em = await shapeOf('Em');
     const amaj = await shapeOf('A');
     if (em.length !== 1 || !em[0].includes('×2')) fail(`${name}: Em should join into one target, got ${em.join(', ')}`);
-    else if (amaj.length !== 3) fail(`${name}: A has three fingers in one fret and must stay three, got ${amaj.join(', ')}`);
-    else pass(`${name}: Em joins to "${em[0]}", A stays three fingers`);
+    else if (amaj.length !== 2) fail(`${name}: A should join into two targets, got ${amaj.join(', ')}`);
+    else if (amaj.filter((l) => l.includes('×2')).length !== 1) fail(`${name}: A joined wrongly: ${amaj.join(', ')}`);
+    else pass(`${name}: Em joins to "${em[0]}", A to "${amaj.join(' + ')}"`);
+
+    // Joining is a choice: off, every string gets the finger the chord is
+    // written with, and A is three again.
+    const joinBtn = page.locator('.fb-join');
+    await joinBtn.click();
+    const solo = await shapeOf('A');
+    if (solo.length !== 3) fail(`${name}: with joining off A should be three fingers, got ${solo.join(', ')}`);
+    else if (solo.some((l) => l.includes('×2'))) fail(`${name}: joining off but still paired: ${solo.join(', ')}`);
+    else pass(`${name}: the join toggle turns A back into three separate fingers`);
 
     // A major puts three fingers on neighbouring strings at one fret. The middle
     // one must stay inside its 7.3mm lane — widening it would start accepting
@@ -148,6 +158,8 @@ export async function run(browser, base, log) {
       // A major is the case that matters: three fingers on neighbouring strings
       // in one fret, so the middle one is hemmed in on both sides. A chord like
       // Em only crowds one side, and there the lane is allowed to widen.
+      // Joining is still off from the check above, which is what puts three
+      // separate fingers in the fret to crowd each other.
       await page.locator('.fb-pick', { hasText: /^A$/ }).first().click();
       await page.waitForTimeout(250);
       const boxed = (await page.evaluate(() => [...document.querySelectorAll('.fb-target')].map((t) => ({
@@ -164,6 +176,7 @@ export async function run(browser, base, log) {
         else pass(`${name}: boxed-in target ${wide.toFixed(1)}×${tall.toFixed(1)}mm — full cell, never past the lane`);
       }
     }
+    await joinBtn.click();     // back to the shipped default for the rest
 
     // The outer string belongs against the rim, where a finger curling over the
     // edge lands. The fretboard past it is clipped off rather than reached over.
@@ -223,9 +236,12 @@ export async function run(browser, base, log) {
     const rang = () => page.evaluate(() => window.__notes > 0);
     const lit = () => page.locator('.fb-target.is-on').count();
 
+    // A joined: index on the D string, middle flattened across G and B.
+    if (spots.length !== 2) fail(`A should present 2 targets to press, got ${spots.length}`);
+
     const cases = [
-      ['all three fingers, one per spot', spots, true, 3],
-      ['only two of the three', spots.slice(0, 2), false, 2],
+      ['every finger, one per spot', spots, true, spots.length],
+      ['one short of the shape', spots.slice(0, -1), false, spots.length - 1],
       ['one broad touch between two spots', [{ x: (spots[0].x + spots[1].x) / 2, y: (spots[0].y + spots[1].y) / 2 }], false, 1],
       ['three fingers on the wrong fret', spots.map((s) => ({ x: s.x, y: s.y - 120 })), false, 0],
     ];

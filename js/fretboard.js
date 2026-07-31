@@ -84,7 +84,7 @@ function h(tag, props = {}, ...kids) {
  * One target per finger, not per string: a finger barring three strings is a
  * single thing your hand does, so it's drawn and judged as one bar.
  */
-function targetsFor(chord) {
+function targetsFor(chord, join = true) {
   const groups = new Map();
   chord.frets.forEach((fret, s) => {
     if (fret <= 0) return;
@@ -93,17 +93,20 @@ function targetsFor(chord) {
     if (!groups.has(key)) groups.set(key, { fret, finger, strings: [] });
     groups.get(key).strings.push(s);
   });
-  return joinPairs([...groups.values()]);
+  const targets = [...groups.values()];
+  return join ? joinPairs(targets) : targets;
 }
 
 /**
- * Where exactly two neighbouring strings are stopped at the same fret, join
- * them into one target: on glass two fingertips at 7.3mm spacing fight each
- * other, and one finger across both is a shape a hand can actually make.
+ * Neighbouring strings stopped at the same fret share a finger: at 7.3mm
+ * spacing two fingertips fight each other on glass, and flattening one finger
+ * across two strings is a shape a hand can actually make — it's how most people
+ * play the top two strings of Dsus4, and the easy F needs it outright.
  *
- * Runs of three are left alone. Flattening three strings under one finger is a
- * different chord shape, not a convenience — A major is the case, and its three
- * fingers stay three.
+ * Never three under one finger. So a run of three becomes two targets rather
+ * than one: pairs are taken from the top string downwards, which leaves any odd
+ * finger on the lowest string of the run and keeps the numbering reading in
+ * order. A major comes out as index on the D string, middle across G and B.
  */
 function joinPairs(targets) {
   const byFret = new Map();
@@ -125,15 +128,19 @@ function joinPairs(targets) {
     runs.push(run);
 
     for (const r of runs) {
-      if (r.length !== 2) continue;            // never three
-      const merged = {
-        fret: r[0].fret,
-        finger: Math.min(r[0].finger, r[1].finger) || r[0].finger,
-        strings: [r[0].strings[0], r[1].strings[0]],
-        pair: true,
-      };
-      joined.set(r[0], merged);
-      joined.set(r[1], null);                  // absorbed
+      // Walk back from the top string in twos; an odd finger is left on its own
+      // at the bottom of the run rather than making a three.
+      for (let i = r.length - 1; i >= 1; i -= 2) {
+        const lower = r[i - 1];
+        const upper = r[i];
+        joined.set(lower, {
+          fret: lower.fret,
+          finger: Math.min(lower.finger, upper.finger) || lower.finger,
+          strings: [lower.strings[0], upper.strings[0]],
+          pair: true,
+        });
+        joined.set(upper, null);               // absorbed
+      }
     }
   }
 
@@ -232,7 +239,8 @@ export function FretboardView(onLeave) {
   // --- drawing -------------------------------------------------------------
   function paint() {
     measure();
-    targets = targetsFor(chord).map((t) => ({ ...t, covered: false, el: null }));
+    targets = targetsFor(chord, !store.getFlag('soloFingers'))
+      .map((t) => ({ ...t, covered: false, el: null }));
 
     board.textContent = '';
     board.style.width = `${boardW}px`;
@@ -619,6 +627,28 @@ export function FretboardView(onLeave) {
   });
   paintBuzz();
 
+  // Sharing a finger between two strings is a real technique, but it isn't the
+  // fingering the chord is written with — so it's a choice, not a rule. Joined
+  // is the default because that's what fits on glass; turn it off to drill the
+  // shape exactly as a teacher would write it.
+  const joinBtn = h('button', { type: 'button', class: 'fb-buzz fb-join' });
+  function paintJoin() {
+    const solo = store.getFlag('soloFingers');
+    joinBtn.textContent = solo ? 'one each' : 'join ×2';
+    joinBtn.classList.toggle('is-on', !solo);
+    joinBtn.setAttribute('aria-pressed', String(!solo));
+    joinBtn.title = solo
+      ? 'One finger per string, exactly as the chord is written. Tap to let neighbouring strings share a finger.'
+      : 'Neighbouring strings at the same fret share one flattened finger. Tap for one finger per string.';
+  }
+  joinBtn.addEventListener('click', () => {
+    store.setFlag('soloFingers', !store.getFlag('soloFingers'));
+    paintJoin();
+    paint();
+    haptics.tick();
+  });
+  paintJoin();
+
   return h('div', { class: 'fb-page' },
     stage,
     h('div', { class: 'fb-side' },
@@ -628,6 +658,7 @@ export function FretboardView(onLeave) {
       nextEl,
       hearBtn,
       strip,
+      joinBtn,
       buzzBtn,
     ),
   );
