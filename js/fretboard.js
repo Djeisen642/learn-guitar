@@ -9,7 +9,7 @@
 // physical units are fiction on a phone (1mm is always 3.78px regardless of the
 // real display), so declaring `43mm` would produce a neck two thirds of life size.
 
-import { CHORD_BY_ID, SONGS, strumSchedule } from './data.js';
+import { CHORD_BY_ID, SONGS, strumSchedule, stepStrums } from './data.js';
 import { strum, unlockAudio } from './audio.js';
 import * as haptics from './haptics.js';
 import * as store from './store.js';
@@ -395,20 +395,30 @@ export function FretboardView(onLeave) {
     const isBest = store.recordForm(chord.id, ms);
     store.touchStreak();
     unlockAudio();
-    strum(chord);                       // the shape is right, so it rings
     haptics.chord();
+    if (!song) strum(chord);            // a lone chord just rings once
     board.classList.add('is-win');
     setTimeout(() => board.classList.remove('is-win'), 600);
 
     if (song) {
-      cleared = step + 1 >= song.chords.length;
-      step = cleared ? 0 : step + 1;
-      if (cleared) haptics.finished();
-      chord = CHORD_BY_ID[song.chords[step]];
-      startedAt = Date.now();
-      paint();
-      paintList();
-      // Clear the flourish once they lift off for the next chord.
+      // You fret, the phone strums: hold the shape and it plays that chord's
+      // bar in the song's own rhythm, then moves on. A single strike told you
+      // the shape was right but never sounded like the song.
+      const secondsPerBeat = 60 / (song.bpm || 90);
+      const here = step;
+      for (const s of stepStrums(song, here)) {
+        playTimers.push(setTimeout(() => strum(chord, s.direction), s.offset * secondsPerBeat * 1000));
+      }
+      const barMs = song.beats[here] * secondsPerBeat * 1000;
+      playTimers.push(setTimeout(() => {
+        cleared = here + 1 >= song.chords.length;
+        step = cleared ? 0 : here + 1;
+        if (cleared) haptics.finished();
+        chord = CHORD_BY_ID[song.chords[step]];
+        startedAt = Date.now();
+        paint();
+        paintList();
+      }, barMs));
       return;
     }
 
