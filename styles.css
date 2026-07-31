@@ -449,22 +449,29 @@ body.play-mode .topbar { display: none; }
 }
 .fb-mark.is-open { color: var(--text); }
 
-/* Where the fingers go. */
+/* Where the fingers go: a rectangle covering the string's lane through the
+   fret, big enough for a flattened fingertip and for naming the finger. */
 .fb-target {
   position: absolute;
-  display: grid; place-items: center;
-  border-radius: 999px;
-  border: 2px dashed rgba(255, 255, 255, .55);
-  background: rgba(224, 145, 47, .22);
-  color: #fff; font-size: 15px; font-weight: 700;
-  transition: background .09s, border-color .09s, transform .09s;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 1px;
+  border-radius: 7px;
+  border: 2px dashed rgba(255, 255, 255, .5);
+  background: rgba(224, 145, 47, .24);
+  color: #fff;
+  overflow: hidden;
+  transition: background .09s, border-color .09s;
 }
-.fb-target.is-bar { border-radius: 999px; }
+.fb-target-num { font-size: 15px; font-weight: 700; line-height: 1; }
+.fb-target-name {
+  font-size: 9.5px; font-weight: 600; line-height: 1;
+  letter-spacing: .02em; opacity: .85;
+  white-space: nowrap;
+}
 .fb-target.is-on {
   background: var(--accent);
   border: 2px solid #fff;
   color: #17130d;
-  transform: scale(1.04);
 }
 
 .fb.is-formed .fb-target { background: var(--good); border-color: #fff; color: #fff; }

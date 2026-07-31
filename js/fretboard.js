@@ -26,9 +26,15 @@ const PX_PER_MM = 6.05;
 const MARKER_PX = 30;     // gap above the nut for the o / x row; matches .fb margin-top
 const SIDE_MIN_PX = 92;   // narrowest the column beside the neck may get
 const HOLD_MS = 260;      // shape must be held, not just brushed
-const TOUCH_MM = 5.2;     // how close a fingertip must land
-const DOT_MM = 3.8;       // drawn fingertip radius — smaller than the tolerance
-                          // so neighbouring targets stay readable as separate spots
+
+// Targets are rectangles covering the string's lane through the fret, so what
+// you see is exactly what you can touch. A flattened fingertip on glass spreads
+// far wider than the circle we used to draw, and a rectangle also leaves room to
+// name the finger rather than just number it.
+const CELL_H_MM = 15;     // how far up and down the fret the target reaches
+const EDGE_FORGIVE_MM = 1.5;
+
+const FINGER_NAMES = ['', 'index', 'middle', 'ring', 'pinky'];
 
 const fretMM = (n) => SCALE_MM - SCALE_MM / Math.pow(2, n / 12);
 
@@ -108,6 +114,16 @@ export function FretboardView(onLeave) {
 
   const stringX = (s) => (EDGE_MM + s * STRING_MM) * ppm;
 
+  /** The rectangle a finger has to land in: one string lane wide, a band tall. */
+  function rectFor(t) {
+    const half = (STRING_MM / 2) * ppm;
+    const x1 = Math.max(0, stringX(Math.min(...t.strings)) - half);
+    const x2 = Math.min(boardW, stringX(Math.max(...t.strings)) + half);
+    const cy = pressMM(t.fret) * ppm;
+    const halfH = (CELL_H_MM / 2) * ppm;
+    return { x1, x2, y1: cy - halfH, y2: cy + halfH, cx: (x1 + x2) / 2, cy };
+  }
+
   // --- drawing -------------------------------------------------------------
   function paint() {
     measure();
@@ -153,15 +169,15 @@ export function FretboardView(onLeave) {
     });
 
     for (const t of targets) {
-      const lo = Math.min(...t.strings);
-      const hi = Math.max(...t.strings);
-      const y = pressMM(t.fret) * ppm;
-      const r = DOT_MM * ppm;
+      const r = rectFor(t);
       const el = h('div', {
         class: 'fb-target' + (t.strings.length > 1 ? ' is-bar' : ''),
-        style: `top:${y}px; left:${stringX(lo)}px; width:${stringX(hi) - stringX(lo) + r * 2}px;`
-          + `height:${r * 2}px; margin-left:${-r}px; margin-top:${-r}px`,
-      }, t.finger ? String(t.finger) : '');
+        style: `left:${r.x1}px; top:${r.y1}px; width:${r.x2 - r.x1}px; height:${r.y2 - r.y1}px`,
+      },
+        h('span', { class: 'fb-target-num' }, t.finger ? String(t.finger) : '•'),
+        t.finger ? h('span', { class: 'fb-target-name' },
+          t.strings.length > 1 ? `${FINGER_NAMES[t.finger]} bar` : FINGER_NAMES[t.finger]) : null,
+      );
       t.el = el;
       board.appendChild(el);
     }
@@ -200,15 +216,16 @@ export function FretboardView(onLeave) {
     return { x: e.clientX - r.left, y: e.clientY - r.top };
   }
 
-  /** Distance from a touch to a target, or null if it's out of tolerance. */
+  /**
+   * Distance from a touch to a target's centre, or null if the touch is outside
+   * the drawn rectangle. Hit area and drawing come from the same rect, so
+   * nothing is secretly bigger or smaller than it looks.
+   */
   function reach(t, p) {
-    const r = TOUCH_MM * ppm;
-    const lo = stringX(Math.min(...t.strings));
-    const hi = stringX(Math.max(...t.strings));
-    const y = pressMM(t.fret) * ppm;
-    const dx = p.x < lo ? lo - p.x : p.x > hi ? p.x - hi : 0;  // 0 anywhere along a barre
-    const d = Math.hypot(dx, p.y - y);
-    return d <= r ? d : null;
+    const r = rectFor(t);
+    const m = EDGE_FORGIVE_MM * ppm;
+    if (p.x < r.x1 - m || p.x > r.x2 + m || p.y < r.y1 - m || p.y > r.y2 + m) return null;
+    return Math.hypot(p.x - r.cx, p.y - r.cy);
   }
 
   /**

@@ -45,6 +45,22 @@ export async function run(browser, base, log) {
       else pass(`${name}: too small for a real neck, and says so ("${g.stat}")`);
     }
 
+    // Targets must name the finger, not just number it — "1" means nothing to
+    // someone who has never been told the numbering.
+    const labels = await page.evaluate(() => [...document.querySelectorAll('.fb-target')].map((t) => ({
+      num: t.querySelector('.fb-target-num')?.textContent,
+      name: t.querySelector('.fb-target-name')?.textContent,
+      w: Math.round(t.getBoundingClientRect().width),
+      h: Math.round(t.getBoundingClientRect().height),
+    })));
+    const named = ['index', 'middle', 'ring', 'pinky'];
+    for (const l of labels) {
+      if (!named.some((n) => l.name?.startsWith(n))) fail(`${name}: target ${l.num} labelled "${l.name}"`);
+      // A circle the size of a fingertip was too small to hit or to label.
+      if (l.w < 30 || l.h < 60) fail(`${name}: target ${l.num} only ${l.w}x${l.h}px`);
+    }
+    if (labels.length) pass(`${name}: targets are ${labels[0].w}×${labels[0].h}px and name the finger`);
+
     // Every chord's targets must sit on the board.
     for (const id of ['C', 'G', 'A', 'Fmini']) {
       await page.locator('.fb-pick', { hasText: new RegExp(`^${id === 'Fmini' ? 'F' : id}$`) }).first().click();
