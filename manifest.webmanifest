@@ -1,6 +1,6 @@
 {
-  "name": "Fretwise — learn guitar chords",
-  "short_name": "Fretwise",
+  "name": "Chordgrip — learn guitar chords",
+  "short_name": "Chordgrip",
   "description": "A mobile-first guitar chord trainer: diagrams you can hear, a staged learning path, and the one-minute-changes drill.",
   "start_url": "./",
   "scope": "./",

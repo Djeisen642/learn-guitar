@@ -1,4 +1,4 @@
-# Fretwise
+# Chordgrip
 
 A mobile-first web app for learning guitar chords on your phone. No build step, no
 dependencies, no accounts — just static files served by GitHub Pages.

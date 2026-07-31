@@ -1,5 +1,5 @@
 // Cache-first service worker so the app works on a phone with no signal.
-const CACHE = 'fretwise-v4';
+const CACHE = 'chordgrip-v1';
 const ASSETS = [
   './',
   './index.html',
