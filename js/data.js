@@ -355,8 +355,8 @@ export const SONGS = [
     note: 'Two of the easiest shapes, and back again.',
   },
   {
-    id: 'grace', name: 'Amazing Grace', chords: ['G', 'C', 'G', 'D'],
-    note: 'Traditional. The G–C change is the one worth the reps.',
+    id: 'grace', name: 'Amazing Grace', chords: ['G', 'G7', 'C', 'G', 'D', 'G'],
+    note: 'Traditional. The G7 is what pulls the ear across to the C.',
   },
   {
     id: 'heaven', name: "Heaven's Door", chords: ['G', 'D', 'Am', 'G', 'D', 'C'],
@@ -367,7 +367,7 @@ export const SONGS = [
     note: 'I–V–vi–IV in C, with the easy F.',
   },
   {
-    id: 'rising', name: 'Rising Sun', chords: ['Am', 'C', 'D', 'Fmini', 'Am', 'E7'],
+    id: 'rising', name: 'Rising Sun', chords: ['Am', 'C', 'D', 'Fmini', 'Am', 'C', 'E7'],
     note: 'Traditional, and a good minor-key workout.',
   },
   {
