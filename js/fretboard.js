@@ -94,59 +94,66 @@ function targetsFor(chord, join = true) {
     groups.get(key).strings.push(s);
   });
   const targets = [...groups.values()];
-  return join ? joinPairs(targets) : targets;
+  return join ? joinPairs(targets, chord) : targets;
 }
 
 /**
- * Neighbouring strings stopped at the same fret share a finger: at 7.3mm
- * spacing two fingertips fight each other on glass, and flattening one finger
- * across two strings is a shape a hand can actually make — it's how most people
- * play the top two strings of Dsus4, and the easy F needs it outright.
+ * Let one flattened finger cover two neighbouring strings — but only where a
+ * real player would, which is rarer than it looks.
  *
- * Never three under one finger. So a run of three becomes two targets rather
- * than one: pairs are taken from the top string downwards, which leaves any odd
- * finger on the lowest string of the run and keeps the numbering reading in
- * order. A major comes out as index on the D string, middle across G and B.
+ * Two dots side by side in the same fret is not on its own a reason to merge
+ * them. Em, E and Am are always taught with two separate fingers; so are the
+ * top two strings of Dsus4, where the whole trick is planting the ring and
+ * pinky and leaving them there through the change. Merging those would teach a
+ * fingering no one uses, on the instrument this is meant to transfer to.
+ *
+ * What is real is the mini-barre A — index flat across D and G, middle on B —
+ * the standard answer to three fingers not fitting in one fret. So the pairs
+ * come from the chord's own `join` list rather than from geometry, and a chord
+ * earns an entry there by being played that way, not by being crowded.
+ * Chords whose written fingering already bars (the easy F) arrive here as a
+ * single target and pass straight through.
  */
-function joinPairs(targets) {
-  const byFret = new Map();
+function joinPairs(targets, chord) {
+  const wanted = chord.join || [];
+  if (!wanted.length) return targets;
+
+  const single = new Map();                    // string -> its lone target
   for (const t of targets) {
-    if (t.strings.length !== 1) continue;      // real barres already span strings
-    if (!byFret.has(t.fret)) byFret.set(t.fret, []);
-    byFret.get(t.fret).push(t);
+    if (t.strings.length === 1) single.set(t.strings[0], t);
   }
 
   const joined = new Map();                    // target -> merged replacement
-  for (const group of byFret.values()) {
-    group.sort((a, b) => a.strings[0] - b.strings[0]);
-    let run = [group[0]];
-    const runs = [];
-    for (let i = 1; i < group.length; i++) {
-      if (group[i].strings[0] === run[run.length - 1].strings[0] + 1) run.push(group[i]);
-      else { runs.push(run); run = [group[i]]; }
-    }
-    runs.push(run);
+  const absorbed = [];                         // fingers the joins made spare
+  for (const pair of wanted) {
+    const [lo, hi] = [...pair].sort((a, b) => a - b);
+    const lower = single.get(lo);
+    const upper = single.get(hi);
+    // The list is per chord, but a shape can arrive fingered differently; only
+    // merge when both strings really are stopped at the same fret, and never
+    // let one finger end up over three strings.
+    if (!lower || !upper || lower.fret !== upper.fret) continue;
+    if (joined.has(lower) || joined.has(upper)) continue;
 
-    for (const r of runs) {
-      // Walk back from the top string in twos; an odd finger is left on its own
-      // at the bottom of the run rather than making a three.
-      for (let i = r.length - 1; i >= 1; i -= 2) {
-        const lower = r[i - 1];
-        const upper = r[i];
-        joined.set(lower, {
-          fret: lower.fret,
-          finger: Math.min(lower.finger, upper.finger) || lower.finger,
-          strings: [lower.strings[0], upper.strings[0]],
-          pair: true,
-        });
-        joined.set(upper, null);               // absorbed
-      }
-    }
+    joined.set(lower, {
+      fret: lower.fret,
+      finger: Math.min(lower.finger, upper.finger) || lower.finger,
+      strings: [lo, hi],
+      pair: true,
+    });
+    joined.set(upper, null);                   // absorbed
+    absorbed.push(upper.finger);
   }
+
+  // A shape that used three fingers now uses two, so the ones above the finger
+  // that got absorbed shuffle down. Without this A reads "index ×2, ring" and
+  // asks you to skip a finger for no reason; the mini-barre is index and middle.
+  const renumber = (f) => (f ? f - absorbed.filter((a) => a < f).length : f);
 
   return targets
     .map((t) => (joined.has(t) ? joined.get(t) : t))
-    .filter(Boolean);
+    .filter(Boolean)
+    .map((t) => ({ ...t, finger: renumber(t.finger) }));
 }
 
 export function FretboardView(onLeave) {
@@ -170,6 +177,14 @@ export function FretboardView(onLeave) {
   const progressEl = h('div', { class: 'fb-progress', hidden: true });
   const hearBtn = h('button', { class: 'fb-hear', type: 'button', hidden: true }, '▶ hear it');
   hearBtn.addEventListener('click', playSong);
+  const speedBtn = h('button', { class: 'fb-buzz fb-speed', type: 'button', hidden: true });
+  speedBtn.addEventListener('click', () => {
+    const next = SPEEDS[(SPEEDS.indexOf(speed()) + 1) % SPEEDS.length];
+    store.setSetting('tempo', next);
+    paintSpeed();
+    haptics.tick();
+    if (playTimers.length) playSong();     // re-time what's already playing
+  });
 
   // --- scale to the phone in hand -----------------------------------------
   let ppm = PX_PER_MM;
@@ -325,12 +340,28 @@ export function FretboardView(onLeave) {
     playTimers = [];
     hearBtn?.classList.remove('is-playing');
   }
+  // "Start slow" is the oldest advice there is, and the only way a change gets
+  // clean: the bar has to last long enough for your hand to arrive.
+  const SPEEDS = [0.5, 0.7, 1];
+  const SPEED_LABEL = { 0.5: 'half speed', 0.7: '70% speed', 1: 'full speed' };
+  const speed = () => (SPEEDS.includes(store.getSetting('tempo')) ? store.getSetting('tempo') : 1);
+  const beatSeconds = () => 60 / ((song?.bpm || 90) * speed());
+
+  function paintSpeed() {
+    const s = speed();
+    speedBtn.textContent = SPEED_LABEL[s];
+    speedBtn.classList.toggle('is-on', s < 1);
+    speedBtn.title = s < 1
+      ? `Bars play at ${Math.round(s * 100)}% of ${song?.name || 'the song'}'s tempo, so there is time to move. Tap to speed up.`
+      : 'Bars play at the song\'s own tempo. Tap to slow it down while a change is still new.';
+  }
+
   function playSong() {
     stopPlayback();
     if (!song) return;
     unlockAudio();
     hearBtn.classList.add('is-playing');
-    const secondsPerBeat = 60 / (song.bpm || 90);
+    const secondsPerBeat = beatSeconds();
     const schedule = strumSchedule(song);
     for (const s of schedule) {
       const c = CHORD_BY_ID[s.chord];
@@ -356,6 +387,8 @@ export function FretboardView(onLeave) {
       nextEl.textContent = `next ${CHORD_BY_ID[next]?.name || next}`;
       nextEl.hidden = false;
       hearBtn.hidden = false;
+      speedBtn.hidden = false;
+      paintSpeed();
       // Segments are sized by how long each chord lasts, so the bar doubles as
       // a picture of the rhythm rather than implying every change is equal.
       progressEl.textContent = '';
@@ -373,6 +406,7 @@ export function FretboardView(onLeave) {
     nextEl.hidden = true;
     progressEl.hidden = true;
     hearBtn.hidden = true;
+    speedBtn.hidden = true;    // a lone chord rings once; there is no tempo
     stopPlayback();
   }
 
@@ -465,7 +499,7 @@ export function FretboardView(onLeave) {
       // You fret, the phone strums: hold the shape and it plays that chord's
       // bar in the song's own rhythm, then moves on. A single strike told you
       // the shape was right but never sounded like the song.
-      const secondsPerBeat = 60 / (song.bpm || 90);
+      const secondsPerBeat = beatSeconds();
       const here = step;
       for (const s of stepStrums(song, here)) {
         playTimers.push(setTimeout(() => strum(chord, s.direction, s.velocity), s.offset * secondsPerBeat * 1000));
@@ -657,6 +691,7 @@ export function FretboardView(onLeave) {
       pipsEl,
       nextEl,
       hearBtn,
+      speedBtn,
       strip,
       joinBtn,
       buzzBtn,

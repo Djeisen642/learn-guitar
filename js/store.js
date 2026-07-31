@@ -88,6 +88,11 @@ export function setFlag(name, on = true) {
   save();
 }
 
+/** A flag that holds a value rather than a yes/no, e.g. the practice tempo. */
+export const getSetting = (name, fallback = null) => state.flags?.[name] ?? fallback;
+
+export const setSetting = setFlag;
+
 export function resetAll() {
   state = empty();
   save();

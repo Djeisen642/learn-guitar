@@ -125,24 +125,29 @@ export async function run(browser, base, log) {
     }
     if (labels.length) pass(`${name}: targets name the finger`);
 
-    // Two neighbouring strings at one fret share a finger, since two fingertips
-    // at 7.3mm fight each other on glass. Never three under one finger, so A's
-    // run of three comes out as a pair plus a single, not one wide bar.
+    // A's three fingers in one fret become the mini-barre people actually play:
+    // index across D and G, middle on B.
     const shapeOf = async (pick) => {
       await page.locator('.fb-pick', { hasText: new RegExp(`^${pick}$`) }).first().click();
       await page.waitForTimeout(200);
       return page.evaluate(() => [...document.querySelectorAll('.fb-target')]
         .map((t) => t.querySelector('.fb-target-name').textContent));
     };
-    const em = await shapeOf('Em');
     const amaj = await shapeOf('A');
-    if (em.length !== 1 || !em[0].includes('×2')) fail(`${name}: Em should join into one target, got ${em.join(', ')}`);
-    else if (amaj.length !== 2) fail(`${name}: A should join into two targets, got ${amaj.join(', ')}`);
-    else if (amaj.filter((l) => l.includes('×2')).length !== 1) fail(`${name}: A joined wrongly: ${amaj.join(', ')}`);
-    else pass(`${name}: Em joins to "${em[0]}", A to "${amaj.join(' + ')}"`);
+    if (amaj.join(' + ') !== 'index ×2 + middle') fail(`${name}: A should be the mini-barre "index ×2 + middle", got ${amaj.join(' + ')}`);
+    else pass(`${name}: A joins to "${amaj.join(' + ')}"`);
 
-    // Joining is a choice: off, every string gets the finger the chord is
-    // written with, and A is three again.
+    // Everything else keeps the fingering it is taught with. Two dots side by
+    // side in one fret is not a reason to merge them: Em, E, Am and Dsus4 are
+    // all played with separate fingers, and merging them would drill a shape
+    // that doesn't exist on a real guitar.
+    for (const [id, want] of [['Em', 'middle + ring'], ['Am', 'middle + ring + index'], ['Dsus4', 'index + ring + pinky']]) {
+      const got = await shapeOf(id);
+      if (got.join(' + ') !== want) fail(`${name}: ${id} should stay "${want}", got ${got.join(' + ')}`);
+      else pass(`${name}: ${id} keeps its written fingering ("${want}")`);
+    }
+
+    // Joining is still a choice: off, A is three fingers again.
     const joinBtn = page.locator('.fb-join');
     await joinBtn.click();
     const solo = await shapeOf('A');
@@ -355,6 +360,37 @@ export async function run(browser, base, log) {
     const moved = stepOf(after) - stepOf(before);
     if (moved > 1) fail(`re-pressing mid-bar advanced ${moved} chords at once ("${before}" → "${after}")`);
     else pass(`re-pressing mid-bar restarts the bar rather than doubling it ("${before}" → "${after}")`);
+
+    // Slowing down has to actually give the hand more time: the bar must last
+    // longer before the song moves on, not just sound slower.
+    const barMs = async () => {
+      const from = await page.locator('.fb-stat').textContent();
+      const t0 = Date.now();
+      await touch('touchStart', await grab());
+      for (let i = 0; i < 80; i++) {
+        await page.waitForTimeout(100);
+        if ((await page.locator('.fb-stat').textContent()) !== from) break;
+      }
+      const ms = Date.now() - t0;
+      await touch('touchEnd', []);
+      await page.waitForTimeout(300);
+      return ms;
+    };
+    const full = await barMs();
+    await page.locator('.fb-speed').click();     // full → half
+    const label = await page.locator('.fb-speed').textContent();
+    const slow = await barMs();
+    // Warm-up is 4 beats at 100bpm: 2.4s a bar, 4.8s at half speed. The bounds
+    // are loose because the poll and the touch add their own tenths.
+    if (!/half/.test(label)) fail(`tempo button says "${label}" after one tap, expected half speed`);
+    else if (slow < full * 1.5) fail(`half speed took ${slow}ms a bar against ${full}ms at full — barely slower`);
+    else pass(`half speed stretches the bar ${(full / 1000).toFixed(1)}s → ${(slow / 1000).toFixed(1)}s`);
+    // Round the cycle back to full speed, which the timings below assume.
+    await page.locator('.fb-speed').click();
+    await page.locator('.fb-speed').click();
+    const back = await page.locator('.fb-speed').textContent();
+    if (!/full/.test(back)) fail(`tempo button cycles to "${back}", never back to full speed`);
+    else pass('the tempo button cycles half → 70% → full');
 
     // Playing a song back must use its own timing, not one chord per tick.
     await page.locator('.fb-pick.is-song', { hasText: 'Heaven' }).first().click();
