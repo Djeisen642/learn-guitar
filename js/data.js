@@ -368,10 +368,12 @@ export const SONGS = [
     note: 'Not a song — three easy shapes in a loop, to get the hand moving.',
   },
   {
-    id: 'grace', name: 'Amazing Grace', chords: ['G', 'G7', 'C', 'G', 'D', 'G'],
-    meter: 3, bpm: 92, beats: [3, 3, 3, 9, 6, 6],
-    note: 'Traditional, 3/4. G–C–G–D is the skeleton every arrangement shares; '
-      + 'the G7 is an optional passing chord that pulls the ear across to the C.',
+    id: 'grace', name: 'Amazing Grace', chords: ['C', 'Fmini', 'C', 'G7', 'C', 'Fmini', 'C', 'G7', 'C'],
+    meter: 3, bpm: 92, beats: [3, 3, 6, 12, 3, 3, 6, 6, 6],
+    note: 'The whole verse, 16 bars of 3/4. Written in E on the sheet this came '
+      + 'from and taken down to C, which sits lower and is easier to sing. The IV '
+      + 'lands on "grace" and the V7 carries the second line; F is the easy '
+      + 'four-string one.',
   },
   {
     id: 'heaven', name: "Heaven's Door", chords: ['G', 'D', 'Am', 'G', 'D', 'C'],
@@ -403,13 +405,18 @@ export const SONGS = [
 // Strumming patterns for automatic playback, as [beat offset within the bar,
 // direction]. A 4/4 pattern doesn't fit a waltz or a 6/8, so there's one per
 // meter rather than one for everything.
+// [beat offset in the bar, direction, how hard]. The third number matters more
+// than it looks: strumming every beat at the same strength is what makes an
+// automatic pattern sound like a metronome rather than a hand. Beat one carries
+// the bar, the offbeat brushes are light.
 const STRUM_BY_METER = {
   // The one everyone uses: D - D U - U D U across the eight eighths.
-  4: [[0, 'down'], [1, 'down'], [1.5, 'up'], [2.5, 'up'], [3, 'down'], [3.5, 'up']],
-  // Waltz: one strum per beat, so 3/4 keeps its lilt.
-  3: [[0, 'down'], [1, 'down'], [2, 'down']],
+  4: [[0, 'down', 1], [1, 'down', 0.7], [1.5, 'up', 0.5], [2.5, 'up', 0.5], [3, 'down', 0.75], [3.5, 'up', 0.5]],
+  // Waltz: down, down-up, down-up, leaning on the one. Three bare downstrokes
+  // is a documented beginner option but comes out stiff at speed.
+  3: [[0, 'down', 1], [1, 'down', 0.65], [1.5, 'up', 0.45], [2, 'down', 0.65], [2.5, 'up', 0.45]],
   // 6/8 rolls in two groups of three.
-  6: [[0, 'down'], [1, 'up'], [2, 'up'], [3, 'down'], [4, 'up'], [5, 'up']],
+  6: [[0, 'down', 1], [1, 'up', 0.45], [2, 'up', 0.45], [3, 'down', 0.8], [4, 'up', 0.45], [5, 'up', 0.45]],
 };
 
 /**
@@ -432,11 +439,11 @@ export function strumSchedule(song) {
 
   const out = [];
   for (let bar = 0; bar * song.meter < total; bar++) {
-    for (const [offset, direction] of pattern) {
+    for (const [offset, direction, velocity] of pattern) {
       const beat = bar * song.meter + offset;
       if (beat >= total) break;
       const span = spans.find((s) => beat >= s.from && beat < s.to);
-      if (span) out.push({ beat, chord: span.id, direction });
+      if (span) out.push({ beat, chord: span.id, direction, velocity });
     }
   }
   return out;
@@ -456,10 +463,10 @@ export function stepStrums(song, index) {
   const beats = song.beats[index];
   const out = [];
   for (let bar = 0; bar * song.meter < beats; bar++) {
-    for (const [offset, direction] of pattern) {
+    for (const [offset, direction, velocity] of pattern) {
       const at = bar * song.meter + offset;
       if (at >= beats) break;
-      out.push({ offset: at, direction });
+      out.push({ offset: at, direction, velocity });
     }
   }
   return out;

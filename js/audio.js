@@ -85,8 +85,12 @@ function pluck(c, freq, when, gain = 0.6) {
   src.onended = () => { src.disconnect(); tone.disconnect(); amp.disconnect(); };
 }
 
-/** Strum a chord entry from data.js. direction: 'down' | 'up'. */
-export function strum(chord, direction = 'down') {
+/**
+ * Strum a chord entry from data.js. direction: 'down' | 'up'.
+ * `velocity` scales how hard: real players lean on beat one and brush the
+ * offbeats, and without that a pattern comes out as a machine tick.
+ */
+export function strum(chord, direction = 'down', velocity = 1) {
   const c = audio();
   if (!c) return;
   const t0 = c.currentTime + 0.02;
@@ -97,7 +101,7 @@ export function strum(chord, direction = 'down') {
   });
   if (direction === 'up') notes.reverse();
   const spread = 0.028;
-  notes.forEach((f, i) => pluck(c, f, t0 + i * spread, 0.5 - i * 0.02));
+  notes.forEach((f, i) => pluck(c, f, t0 + i * spread, (0.5 - i * 0.02) * velocity));
 }
 
 /** Play the strings one at a time, slowly, so you can check each one rings. */

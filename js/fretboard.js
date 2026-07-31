@@ -278,7 +278,7 @@ export function FretboardView(onLeave) {
     const schedule = strumSchedule(song);
     for (const s of schedule) {
       const c = CHORD_BY_ID[s.chord];
-      playTimers.push(setTimeout(() => strum(c, s.direction), s.beat * secondsPerBeat * 1000));
+      playTimers.push(setTimeout(() => strum(c, s.direction, s.velocity), s.beat * secondsPerBeat * 1000));
     }
     const total = song.beats.reduce((a, b) => a + b, 0);
     playTimers.push(setTimeout(stopPlayback, total * secondsPerBeat * 1000));
@@ -407,7 +407,7 @@ export function FretboardView(onLeave) {
       const secondsPerBeat = 60 / (song.bpm || 90);
       const here = step;
       for (const s of stepStrums(song, here)) {
-        playTimers.push(setTimeout(() => strum(chord, s.direction), s.offset * secondsPerBeat * 1000));
+        playTimers.push(setTimeout(() => strum(chord, s.direction, s.velocity), s.offset * secondsPerBeat * 1000));
       }
       const barMs = song.beats[here] * secondsPerBeat * 1000;
       playTimers.push(setTimeout(() => {
