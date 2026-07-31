@@ -27,14 +27,15 @@ const PX_PER_MM = 6.05;
 const MARKER_PX = 30;     // gap above the nut for the o / x row; matches .fb margin-top
 const SIDE_MIN_PX = 62;   // narrowest the column beside the neck may get
 
-// A phone has a rim, a case lip and often a curve where a fretboard just ends
-// flat, so a string sitting hard against the edge can't be pressed cleanly.
-// This is dead space between the outer string and the screen edge. It costs
-// nothing in fidelity: string and fret spacing are what transfer, and the
-// distance out to the phone's rim is not part of the instrument. Measured in
-// real millimetres against the unscaled constant, because a physical edge does
-// not shrink when the board does.
-const EDGE_GUARD_MM = 8;
+// A real neck carries ~3.6mm of fretboard past the outer string, and your hand
+// wraps around it. A phone can't be wrapped around, so that margin is just
+// glass you have to reach across before the first string. The board is run off
+// the right edge instead and the surplus clipped, putting the outer string
+// almost against the rim — where a finger curling over the edge actually lands.
+// Physical millimetres, against the unscaled constant, since the phone's rim
+// doesn't shrink when the board does.
+const STRING_EDGE_MM = 1.5;
+const LAYOUT_GAP_PX = 12;   // page padding plus the gap to the side column
 const HOLD_MS = 260;      // shape must be held, not just brushed
 
 // Targets are rectangles, sized to the largest area that is still honest.
@@ -127,18 +128,23 @@ export function FretboardView(onLeave) {
       ? stage.getBoundingClientRect().height - MARKER_PX
       : 600;
     const trueH = fretMM(FRETS) * PX_PER_MM;
-    const trueW = (STRING_MM * 5 + EDGE_MM * 2) * PX_PER_MM;
-    // The board already draws EDGE_MM of fretboard beyond the outer string, so
-    // only the shortfall has to come out of the layout.
-    const guard = Math.max(0, (EDGE_GUARD_MM - EDGE_MM) * PX_PER_MM);
-    stage.style.paddingRight = `${guard.toFixed(1)}px`;
-    const room = window.innerWidth - guard - SIDE_MIN_PX;
-    // Shrink only if the phone genuinely can't fit a real neck.
-    ppm = PX_PER_MM * Math.min(1, avail > 0 ? avail / trueH : 1, room / trueW);
-    // Never exceed life size, but do let the fretboard run on into any space
-    // left over — a real neck doesn't stop dead after the third fret.
+
+    // Only the board up to the outer string takes layout width — everything
+    // past it runs off the screen and is clipped.
+    const toOuter = EDGE_MM + STRING_MM * 5;
+    const edgePx = STRING_EDGE_MM * PX_PER_MM;
+    const roomW = window.innerWidth - SIDE_MIN_PX - LAYOUT_GAP_PX;
+
+    ppm = Math.min(
+      PX_PER_MM,                                  // never larger than life
+      avail > 0 ? (avail / trueH) * PX_PER_MM : PX_PER_MM,
+      (roomW - edgePx) / toOuter,
+    );
+
     boardH = Math.max(fretMM(FRETS) * ppm, Math.min(avail, fretMM(FRETS + 2) * ppm));
     boardW = (STRING_MM * 5 + EDGE_MM * 2) * ppm;
+    // The stage is the visible slice; the board overflows it and gets cut off.
+    stage.style.width = `${(toOuter * ppm + edgePx).toFixed(1)}px`;
   }
 
   const stringX = (s) => (EDGE_MM + s * STRING_MM) * ppm;
@@ -442,7 +448,7 @@ export function FretboardView(onLeave) {
         class: 'fb-pick is-song' + (song?.id === s.id ? ' is-on' : ''),
         title: s.note,
         onclick: () => selectSong(s),
-      }, s.short || s.name));
+      }, s.name));
     });
     strip.appendChild(h('p', { class: 'fb-listhead' }, 'Chords'));
     PRACTICE.forEach((id) => {
