@@ -361,7 +361,8 @@ export const SONGS = [
   },
   {
     id: 'grace', name: 'Amazing Grace', chords: ['G', 'G7', 'C', 'G', 'D', 'G'],
-    note: 'Traditional. The G7 is what pulls the ear across to the C.',
+    note: 'Traditional, 3/4. G–C–G–D is the skeleton every arrangement shares; '
+      + 'the G7 is an optional passing chord that pulls the ear across to the C.',
   },
   {
     id: 'heaven', name: "Heaven's Door", chords: ['G', 'D', 'Am', 'G', 'D', 'C'],
