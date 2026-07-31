@@ -6,8 +6,8 @@
 //   barres:  [{ fret, from, to }] where from/to are string indices (0 = low E)
 //   join:    [[s1, s2]] pairs of strings a documented easier fingering covers
 //            with one flattened finger. Play mode offers these, so the list is
-//            a claim about how the chord is really played — not a licence to
-//            merge any two neighbouring dots that happen to share a fret.
+//            a claim about how the chord is really played — not a license to
+//            merge any two neighboring dots that happen to share a fret.
 
 export const CHORDS = [
   // --- open majors -------------------------------------------------------
@@ -144,7 +144,7 @@ export const CHORDS = [
     tip: 'Often substitutes for F in a beginner song. No barre required.',
   },
 
-  // --- colour chords -----------------------------------------------------
+  // --- color chords ------------------------------------------------------
   {
     id: 'Asus2', name: 'Asus2', full: 'A suspended 2nd', group: 'Sus / add',
     frets: [-1, 0, 2, 2, 0, 0], fingers: [0, 0, 1, 2, 0, 0],
@@ -262,7 +262,7 @@ export const STAGES = [
   {
     id: 's6',
     title: 'The barre chords',
-    blurb: 'Everyone struggles here — it is a technique problem, not a talent problem. Start with the mini F, and practise in short bursts so your hand does not fatigue.',
+    blurb: 'Everyone struggles here — it is a technique problem, not a talent problem. Start with the mini F, and practice in short bursts so your hand does not fatigue.',
     chords: ['Fmini', 'F', 'Bm', 'B'],
     changes: [['C', 'Fmini'], ['C', 'F'], ['G', 'Bm'], ['E', 'B']],
     goal: 'Hold F for four clean strums, then 20 changes per minute C → F',
@@ -270,7 +270,7 @@ export const STAGES = [
   },
   {
     id: 's7',
-    title: 'Colour and movement',
+    title: 'Color and movement',
     blurb: 'Small finger moves against a held chord. This is where strumming stops sounding like exercises and starts sounding like music.',
     chords: ['Cadd9', 'G4', 'Dsus4', 'Dsus2', 'Asus2', 'Asus4', 'Esus4', 'GB', 'DFs'],
     changes: [['G4', 'Cadd9'], ['D', 'Dsus4'], ['A', 'Asus4'], ['G', 'DFs']],
@@ -319,7 +319,7 @@ export const PROGRESSIONS = [
   {
     name: 'Doo-wop / 50s',
     numerals: 'I – vi – IV – V',
-    note: 'Warm and nostalgic. Great for practising the G → Em → C → D circuit.',
+    note: 'Warm and nostalgic. Great for practicing the G → Em → C → D circuit.',
     keys: [
       { key: 'C', chords: ['C', 'Am', 'F', 'G'] },
       { key: 'G', chords: ['G', 'Em', 'C', 'D'] },

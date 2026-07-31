@@ -687,7 +687,7 @@ function SongsView() {
       h('a', {
         class: 'chip', href: `#/practice/drill`,
         onclick: () => { drillPreset = p.keys[0].chords.slice(); },
-      }, 'Practise with the changer'),
+      }, 'Practice with the changer'),
     ));
   });
 
