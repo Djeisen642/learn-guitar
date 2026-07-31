@@ -125,6 +125,21 @@ export async function run(browser, base, log) {
     }
     if (labels.length) pass(`${name}: targets name the finger`);
 
+    // Two neighbouring strings at one fret join into a single target, since two
+    // fingertips at 7.3mm fight each other on glass. Three never do — that is a
+    // different chord shape, not a convenience.
+    const shapeOf = async (pick) => {
+      await page.locator('.fb-pick', { hasText: new RegExp(`^${pick}$`) }).first().click();
+      await page.waitForTimeout(200);
+      return page.evaluate(() => [...document.querySelectorAll('.fb-target')]
+        .map((t) => t.querySelector('.fb-target-name').textContent));
+    };
+    const em = await shapeOf('Em');
+    const amaj = await shapeOf('A');
+    if (em.length !== 1 || !em[0].includes('×2')) fail(`${name}: Em should join into one target, got ${em.join(', ')}`);
+    else if (amaj.length !== 3) fail(`${name}: A has three fingers in one fret and must stay three, got ${amaj.join(', ')}`);
+    else pass(`${name}: Em joins to "${em[0]}", A stays three fingers`);
+
     // A major puts three fingers on neighbouring strings at one fret. The middle
     // one must stay inside its 7.3mm lane — widening it would start accepting
     // the neighbouring string, which is a wrong note — while still standing the
@@ -300,6 +315,30 @@ export async function run(browser, base, log) {
     else if (!/all \d+/.test(stat)) fail(`finishing a song shows "${stat}", not a completion`);
     else pass(`song advances ${seen.join(' → ')} and reports "${stat}"`);
     // The loop above already lifted off; no reset needed here.
+
+    // Lifting off mid-bar re-arms the detector. Re-pressing used to lay a
+    // second bar of strumming over the first and queue a second advance with
+    // it, so the song jumped two chords and the sound doubled.
+    await page.locator('.fb-pick.is-song', { hasText: 'Warm-up' }).first().click();
+    await page.waitForTimeout(300);
+    const before = await page.locator('.fb-stat').textContent();
+    const grab = async () => page.evaluate(() => [...document.querySelectorAll('.fb-target')].map((t) => {
+      const r = t.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    }));
+    await touch('touchStart', await grab());
+    await page.waitForTimeout(600);          // into the bar
+    await touch('touchEnd', []);
+    await page.waitForTimeout(120);
+    await touch('touchStart', await grab());  // press again before it finishes
+    await page.waitForTimeout(3200);
+    await touch('touchEnd', []);
+    await page.waitForTimeout(300);
+    const after = await page.locator('.fb-stat').textContent();
+    const stepOf = (s) => Number((s.match(/(\d+)\/\d+/) || [])[1] || 0);
+    const moved = stepOf(after) - stepOf(before);
+    if (moved > 1) fail(`re-pressing mid-bar advanced ${moved} chords at once ("${before}" → "${after}")`);
+    else pass(`re-pressing mid-bar restarts the bar rather than doubling it ("${before}" → "${after}")`);
 
     // Playing a song back must use its own timing, not one chord per tick.
     await page.locator('.fb-pick.is-song', { hasText: 'Heaven' }).first().click();
