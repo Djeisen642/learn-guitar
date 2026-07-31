@@ -158,6 +158,20 @@ export async function run(browser, base, log) {
     else if (onLand.some((p) => typeof p === 'number' && p < 10)) fail(`vibration pulse too short to feel: ${onLand.join(',')}ms`);
     else pass(`finger landing buzzes (${onLand.join(', ')}ms)`);
 
+    // navigator.vibrate cancels whatever is already running, so fingers landing
+    // together used to fire pulses that cut each other short. One solid tick.
+    await page.evaluate(() => { window.__buzz = []; });
+    await touch('touchStart', spots.slice(0, 1));
+    await page.waitForTimeout(20);
+    await touch('touchMove', spots.slice(0, 2));
+    await page.waitForTimeout(20);
+    await touch('touchMove', spots);
+    await page.waitForTimeout(120);
+    const burst = await page.evaluate(() => window.__buzz.filter((p) => typeof p === 'number'));
+    if (burst.length > 1) fail(`${burst.length} ticks inside 45ms — they cancel each other`);
+    else pass('simultaneous finger landings coalesce into one tick');
+    await reset();
+
     await page.evaluate(() => { window.__buzz = []; });
     await touch('touchStart', spots);
     await page.waitForTimeout(520);

@@ -394,19 +394,46 @@ export function FretboardView(onLeave) {
   // Neck runs the full height against one screen edge; everything else lives in
   // the column beside it. That reclaimed height is what buys true life size.
   // CSS puts the neck on the right (row-reverse) — see .fb-page.
-  // Only worth showing where vibration exists at all — Safari has no API for it.
-  const buzzBtn = haptics.isSupported() ? h('button', {
+  // Always rendered, never silently absent: "I feel nothing" needs to be
+  // distinguishable from "this phone has no vibration" and from "my fingers
+  // aren't landing on the targets", and tapping it buzzes hard enough to tell.
+  const BUZZ_LABEL = {
+    on: 'buzz on', off: 'buzz off',
+    unsupported: 'no buzz here', refused: 'buzz blocked',
+  };
+  const buzzBtn = h('button', {
     type: 'button',
-    class: 'fb-buzz' + (haptics.isEnabled() ? ' is-on' : ''),
-    'aria-pressed': String(haptics.isEnabled()),
-    onclick: (e) => {
-      const on = !haptics.isEnabled();
-      haptics.setEnabled(on);
-      e.currentTarget.classList.toggle('is-on', on);
-      e.currentTarget.setAttribute('aria-pressed', String(on));
-      e.currentTarget.textContent = on ? 'buzz on' : 'buzz off';
-    },
-  }, haptics.isEnabled() ? 'buzz on' : 'buzz off') : null;
+    class: 'fb-buzz',
+    title: 'Tap to test the vibration on this phone',
+  }, BUZZ_LABEL[haptics.support()]);
+
+  function paintBuzz() {
+    const state = haptics.support();
+    buzzBtn.textContent = BUZZ_LABEL[state];
+    buzzBtn.classList.toggle('is-on', state === 'on');
+    buzzBtn.classList.toggle('is-warn', state === 'refused' || state === 'unsupported');
+    buzzBtn.setAttribute('aria-pressed', String(state === 'on'));
+    buzzBtn.title = state === 'unsupported'
+      ? 'This browser has no vibration API — Safari has never shipped one'
+      : state === 'refused'
+        ? 'The phone refused to vibrate. Check touch feedback in its sound settings.'
+        : 'Tap to test the vibration on this phone';
+  }
+  buzzBtn.addEventListener('click', () => {
+    if (haptics.support() === 'unsupported') return;
+    // Tapping while on is a test, not an off switch — you need to be able to
+    // check it works without losing the setting.
+    if (haptics.isEnabled()) haptics.test();
+    else haptics.setEnabled(true);
+    paintBuzz();
+  });
+  // Long-press turns it off, so a quiet room is still possible.
+  buzzBtn.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    haptics.setEnabled(false);
+    paintBuzz();
+  });
+  paintBuzz();
 
   return h('div', { class: 'fb-page' },
     stage,

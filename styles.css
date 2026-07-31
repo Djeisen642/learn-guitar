@@ -512,6 +512,7 @@ body.play-mode .topbar { display: none; }
   background: transparent; border: 1px solid var(--line); color: var(--text-dim);
 }
 .fb-buzz.is-on { color: var(--accent); border-color: var(--accent); }
+.fb-buzz.is-warn { color: var(--text-dim); border-style: dashed; opacity: .75; }
 
 /* --- songs --------------------------------------------------------------- */
 
