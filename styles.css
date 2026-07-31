@@ -449,24 +449,28 @@ body.play-mode .topbar { display: none; }
 }
 .fb-mark.is-open { color: var(--text); }
 
-/* Where the fingers go: a rectangle covering the string's lane through the
-   fret, big enough for a flattened fingertip and for naming the finger. */
+/* Where the fingers go. The rectangle is the whole fret cell — on a real neck
+   the pitch is the same anywhere between two wires — and the shading leans
+   toward the fret, where the note actually rings cleanest. */
 .fb-target {
   position: absolute;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 1px;
   border-radius: 7px;
-  border: 2px dashed rgba(255, 255, 255, .5);
-  background: rgba(224, 145, 47, .24);
+  border: 2px dashed rgba(255, 255, 255, .45);
+  background: linear-gradient(180deg, rgba(224, 145, 47, .10), rgba(224, 145, 47, .34));
   color: #fff;
   overflow: hidden;
   transition: background .09s, border-color .09s;
 }
+.fb-target-label {
+  position: absolute; left: 0; right: 0;
+  transform: translateY(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+  pointer-events: none;
+}
 .fb-target-num { font-size: 15px; font-weight: 700; line-height: 1; }
 .fb-target-name {
   font-size: 9.5px; font-weight: 600; line-height: 1;
-  letter-spacing: .02em; opacity: .85;
-  white-space: nowrap;
+  letter-spacing: .02em; opacity: .85; white-space: nowrap;
 }
 .fb-target.is-on {
   background: var(--accent);

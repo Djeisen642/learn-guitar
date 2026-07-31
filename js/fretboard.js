@@ -27,11 +27,21 @@ const MARKER_PX = 30;     // gap above the nut for the o / x row; matches .fb ma
 const SIDE_MIN_PX = 92;   // narrowest the column beside the neck may get
 const HOLD_MS = 260;      // shape must be held, not just brushed
 
-// Targets are rectangles covering the string's lane through the fret, so what
-// you see is exactly what you can touch. A flattened fingertip on glass spreads
-// far wider than the circle we used to draw, and a rectangle also leaves room to
-// name the finger rather than just number it.
-const CELL_H_MM = 15;     // how far up and down the fret the target reaches
+// Targets are rectangles, sized to the largest area that is still honest.
+//
+// Vertically that is the whole fret cell: on a real guitar the pitch is
+// identical anywhere between two fret wires — only tone and buzz change — so
+// every part of the cell is a genuinely correct answer.
+//
+// Horizontally it is the string lane, because pressing the wrong string is a
+// wrong note. That caps the width at the 7.3mm string spacing wherever a chord
+// puts fingers on neighbouring strings, which is under the ~10mm that touch
+// research treats as the floor for reliable hits (fingertip contact is 8-14mm).
+// That gap is exactly why three-in-a-fret feels cramped on glass, and it isn't
+// something the app can design away without lying about the instrument. Where
+// no neighbouring finger is in the way, the lane widens toward that 10mm.
+const LANE_MAX_MM = 10;
+const WIRE_INSET_MM = 1;  // keep the fret wires readable as edges
 const EDGE_FORGIVE_MM = 1.5;
 
 const FINGER_NAMES = ['', 'index', 'middle', 'ring', 'pinky'];
@@ -114,14 +124,36 @@ export function FretboardView(onLeave) {
 
   const stringX = (s) => (EDGE_MM + s * STRING_MM) * ppm;
 
-  /** The rectangle a finger has to land in: one string lane wide, a band tall. */
+  /**
+   * The largest rectangle that is still a correct answer: the full fret cell
+   * tall, and as wide as the string lane can grow before it would reach a
+   * neighbouring finger in the same fret.
+   */
   function rectFor(t) {
     const half = (STRING_MM / 2) * ppm;
-    const x1 = Math.max(0, stringX(Math.min(...t.strings)) - half);
-    const x2 = Math.min(boardW, stringX(Math.max(...t.strings)) + half);
-    const cy = pressMM(t.fret) * ppm;
-    const halfH = (CELL_H_MM / 2) * ppm;
-    return { x1, x2, y1: cy - halfH, y2: cy + halfH, cx: (x1 + x2) / 2, cy };
+    const inset = WIRE_INSET_MM * ppm;
+    const loX = stringX(Math.min(...t.strings));
+    const hiX = stringX(Math.max(...t.strings));
+
+    let x1 = loX - half;
+    let x2 = hiX + half;
+    const grow = ((LANE_MAX_MM - STRING_MM) / 2) * ppm;
+    let left = x1 - grow;
+    let right = x2 + grow;
+    for (const other of targets) {
+      // Only fingers sharing this fret compete: other frets are separate cells.
+      if (other === t || other.fret !== t.fret) continue;
+      const oLo = stringX(Math.min(...other.strings));
+      const oHi = stringX(Math.max(...other.strings));
+      if (oHi < loX) left = Math.max(left, (oHi + loX) / 2);
+      if (oLo > hiX) right = Math.min(right, (oLo + hiX) / 2);
+    }
+    x1 = Math.max(0, left);
+    x2 = Math.min(boardW, right);
+
+    const y1 = fretMM(t.fret - 1) * ppm + inset;
+    const y2 = fretMM(t.fret) * ppm - inset;
+    return { x1, x2, y1, y2, cx: (x1 + x2) / 2, cy: pressMM(t.fret) * ppm };
   }
 
   // --- drawing -------------------------------------------------------------
@@ -170,13 +202,17 @@ export function FretboardView(onLeave) {
 
     for (const t of targets) {
       const r = rectFor(t);
+      // The whole cell counts, but the label sits at the sweet spot just behind
+      // the fret so the eye still learns where a note rings cleanest.
       const el = h('div', {
         class: 'fb-target' + (t.strings.length > 1 ? ' is-bar' : ''),
         style: `left:${r.x1}px; top:${r.y1}px; width:${r.x2 - r.x1}px; height:${r.y2 - r.y1}px`,
       },
-        h('span', { class: 'fb-target-num' }, t.finger ? String(t.finger) : '•'),
-        t.finger ? h('span', { class: 'fb-target-name' },
-          t.strings.length > 1 ? `${FINGER_NAMES[t.finger]} bar` : FINGER_NAMES[t.finger]) : null,
+        h('span', { class: 'fb-target-label', style: `top:${r.cy - r.y1}px` },
+          h('span', { class: 'fb-target-num' }, t.finger ? String(t.finger) : '•'),
+          t.finger ? h('span', { class: 'fb-target-name' },
+            t.strings.length > 1 ? `${FINGER_NAMES[t.finger]} bar` : FINGER_NAMES[t.finger]) : null,
+        ),
       );
       t.el = el;
       board.appendChild(el);

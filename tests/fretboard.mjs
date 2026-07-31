@@ -59,7 +59,32 @@ export async function run(browser, base, log) {
       // A circle the size of a fingertip was too small to hit or to label.
       if (l.w < 30 || l.h < 60) fail(`${name}: target ${l.num} only ${l.w}x${l.h}px`);
     }
-    if (labels.length) pass(`${name}: targets are ${labels[0].w}×${labels[0].h}px and name the finger`);
+    if (labels.length) pass(`${name}: targets name the finger`);
+
+    // A major puts three fingers on neighbouring strings at one fret. The middle
+    // one must stay inside its 7.3mm lane — widening it would start accepting
+    // the neighbouring string, which is a wrong note — while still standing the
+    // full height of the fret cell, where the pitch is identical anyway.
+    if (scale > 0.99) {
+      // A major is the case that matters: three fingers on neighbouring strings
+      // in one fret, so the middle one is hemmed in on both sides. A chord like
+      // Em only crowds one side, and there the lane is allowed to widen.
+      await page.locator('.fb-pick', { hasText: /^A$/ }).first().click();
+      await page.waitForTimeout(250);
+      const boxed = (await page.evaluate(() => [...document.querySelectorAll('.fb-target')].map((t) => ({
+        name: t.querySelector('.fb-target-name')?.textContent,
+        w: t.getBoundingClientRect().width,
+        h: t.getBoundingClientRect().height,
+      })))).find((l) => l.name === 'middle');
+      if (!boxed) fail(`${name}: no middle-finger target to measure`);
+      else {
+        const wide = boxed.w / PX_PER_MM;
+        const tall = boxed.h / PX_PER_MM;
+        if (wide > 7.6) fail(`${name}: boxed-in target ${wide.toFixed(1)}mm wide, past the 7.3mm string lane`);
+        else if (tall < 28) fail(`${name}: target ${tall.toFixed(1)}mm tall, fret cell is ~34mm`);
+        else pass(`${name}: boxed-in target ${wide.toFixed(1)}×${tall.toFixed(1)}mm — full cell, never past the lane`);
+      }
+    }
 
     // Every chord's targets must sit on the board.
     for (const id of ['C', 'G', 'A', 'Fmini']) {
