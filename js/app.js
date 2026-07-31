@@ -2,7 +2,7 @@ import { CHORDS, CHORD_BY_ID, STAGES, PROGRESSIONS, STRUMS } from './data.js';
 import { chordDiagram } from './diagram.js';
 import { strum, arpeggiate, click, unlockAudio, now } from './audio.js';
 import * as store from './store.js';
-import { PlayView } from './play.js';
+import { FretboardView } from './fretboard.js';
 
 const view = document.getElementById('view');
 const sheet = document.getElementById('sheet');
@@ -732,7 +732,7 @@ function render() {
   switch (parts[0]) {
     case 'chords': node = ChordsView(); break;
     case 'songs': node = SongsView(); break;
-    case 'play': node = PlayView(onLeave); break;
+    case 'play': node = FretboardView(onLeave); break;
     case 'practice':
       if (parts[1] === 'omc') node = OmcView(parts[2], parts[3]);
       else if (parts[1] === 'drill') {
@@ -746,6 +746,8 @@ function render() {
   view.textContent = '';
   view.appendChild(node);
   window.scrollTo(0, 0);
+  // Play gives the fretboard the whole screen, header included.
+  document.body.classList.toggle('play-mode', parts[0] === 'play');
 
   const tab = parts[0] === 'practice' ? 'practice'
     : ['chords', 'songs', 'play'].includes(parts[0]) ? parts[0] : 'learn';

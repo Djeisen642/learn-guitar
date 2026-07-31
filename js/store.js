@@ -67,6 +67,19 @@ export function streak() {
 
 export const learnedCount = () => Object.keys(state.learned).length;
 
+/** Fastest clean formation of a chord shape, in milliseconds (lower is better). */
+export const bestForm = (id) => state.best[`form:${id}`] || 0;
+
+export function recordForm(id, ms) {
+  const k = `form:${id}`;
+  if (!state.best[k] || ms < state.best[k]) {
+    state.best[k] = ms;
+    save();
+    return true;
+  }
+  return false;
+}
+
 /** One-off UI flags, e.g. "they've seen the rotation tip". */
 export const getFlag = (name) => !!state.flags?.[name];
 
