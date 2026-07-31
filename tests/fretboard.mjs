@@ -6,6 +6,8 @@
 //     ~7mm apart with a ~5mm touch tolerance, so one broad touch overlaps two of
 //     them; without one-to-one matching a sloppy shape would pass.
 
+import { SONGS, CHORD_BY_ID } from '../js/data.js';
+
 const PX_PER_MM = 6.05;             // must match js/fretboard.js
 const SCALE_MM = 647.7;
 const fretMM = (n) => SCALE_MM - SCALE_MM / Math.pow(2, n / 12);
@@ -14,6 +16,18 @@ export async function run(browser, base, log) {
   const problems = [];
   const fail = (s) => { problems.push(s); log(`  ✗ ${s}`); };
   const pass = (s) => log(`  ✓ ${s}`);
+
+  // --- song data -----------------------------------------------------------
+  // The board only draws frets 1-3, so a song reaching past that would put
+  // finger targets off the neck entirely.
+  for (const s of SONGS) {
+    const missing = s.chords.filter((id) => !CHORD_BY_ID[id]);
+    const deep = s.chords.filter((id) => CHORD_BY_ID[id] && Math.max(...CHORD_BY_ID[id].frets) > 3);
+    if (missing.length) fail(`song "${s.name}" uses unknown chords: ${missing.join(', ')}`);
+    else if (deep.length) fail(`song "${s.name}" needs frets past 3: ${deep.join(', ')}`);
+    else if (s.chords.length < 3) fail(`song "${s.name}" is only ${s.chords.length} chords`);
+  }
+  pass(`all ${SONGS.length} songs use known chords inside the first three frets`);
 
   // --- geometry ------------------------------------------------------------
   for (const [name, w, h] of [['Galaxy S23', 360, 780], ['iPhone 12', 390, 844], ['Pixel 7', 412, 915]]) {
