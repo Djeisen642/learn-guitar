@@ -345,43 +345,57 @@ export const PROGRESSIONS = [
   },
 ];
 
-// Short chord sequences to play through on the fretboard. Every chord is an
+// Short chord sequences to play through on the fretboard.
+//
+// `beats` gives each step's length in the song's own beat, and `meter` how many
+// of those make a bar — so Heaven's Door's G and D are two beats of a shared
+// 4/4 bar, while Amazing Grace's G runs three bars of 3/4. Without this a
+// correct sequence of chords still doesn't sound like the tune, because every
+// change lands in the wrong place. `bpm` counts the same beat. Every chord is an
 // open shape inside the first three frets, so the whole song fits on the neck
 // without moving position. Kept to a handful of steps each — the point is to
 // chain changes together, not to memorise an arrangement.
 export const SONGS = [
   {
     id: 'horse', name: 'A Horse with No Name', chords: ['Em', 'D', 'Em', 'D'],
+    meter: 4, bpm: 120, beats: [4, 4, 4, 4],
     note: 'Two chords, and the pair most often named the easiest song on the guitar. '
       + 'The record uses a D6add9; plain D is the standard beginner stand-in.',
   },
   {
     id: 'warmup', name: 'Warm-up', chords: ['Em', 'A', 'Em', 'D'],
+    meter: 4, bpm: 100, beats: [4, 4, 4, 4],
     note: 'Not a song — three easy shapes in a loop, to get the hand moving.',
   },
   {
     id: 'grace', name: 'Amazing Grace', chords: ['G', 'G7', 'C', 'G', 'D', 'G'],
+    meter: 3, bpm: 92, beats: [3, 3, 3, 9, 6, 6],
     note: 'Traditional, 3/4. G–C–G–D is the skeleton every arrangement shares; '
       + 'the G7 is an optional passing chord that pulls the ear across to the C.',
   },
   {
     id: 'heaven', name: "Heaven's Door", chords: ['G', 'D', 'Am', 'G', 'D', 'C'],
+    meter: 4, bpm: 72, beats: [2, 2, 4, 2, 2, 4],
     note: 'The whole verse is these six.',
   },
   {
     id: 'letitbe', name: 'Let It Be', chords: ['C', 'G', 'Am', 'Fmini', 'C', 'G', 'Fmini', 'C'],
+    meter: 4, bpm: 72, beats: [2, 2, 2, 2, 2, 2, 2, 2],
     note: 'The whole verse: C G | Am F | C G | F C, with the easy F.',
   },
   {
     id: 'rising', name: 'Rising Sun', chords: ['Am', 'C', 'D', 'Fmini', 'Am', 'C', 'E'],
+    meter: 6, bpm: 156, beats: [6, 6, 6, 6, 6, 6, 12],
     note: 'A minor key that borrows a major D and E — that is what gives it the sound.',
   },
   {
     id: 'blues', name: '12-bar blues', chords: ['A7', 'D7', 'A7', 'E7', 'D7', 'A7', 'E7'],
+    meter: 4, bpm: 100, beats: [16, 8, 8, 4, 4, 4, 4],
     note: 'The 12 bars as their seven changes, ending on the turnaround back to A7.',
   },
   {
     id: 'britpop', name: 'Britpop loop', chords: ['Em', 'G', 'Dsus4', 'Cadd9'],
+    meter: 4, bpm: 87, beats: [4, 4, 4, 4],
     note: 'Keep fingers 3 and 4 down throughout.',
   },
 ];

@@ -26,8 +26,22 @@ export async function run(browser, base, log) {
     if (missing.length) fail(`song "${s.name}" uses unknown chords: ${missing.join(', ')}`);
     else if (deep.length) fail(`song "${s.name}" needs frets past 3: ${deep.join(', ')}`);
     else if (s.chords.length < 3) fail(`song "${s.name}" is only ${s.chords.length} chords`);
+
+    // Timing has to line up with the chords or the playback drifts, and the
+    // beats have to add up to whole bars or the sequence isn't the tune.
+    if (!s.beats || s.beats.length !== s.chords.length) {
+      fail(`song "${s.name}" has ${s.beats?.length ?? 0} beat counts for ${s.chords.length} chords`);
+    } else if (s.beats.some((b) => !(b > 0))) {
+      fail(`song "${s.name}" has a non-positive beat count`);
+    } else {
+      const total = s.beats.reduce((a, b) => a + b, 0);
+      if (total % s.meter !== 0) {
+        fail(`song "${s.name}" is ${total} beats, not a whole number of ${s.meter}-beat bars`);
+      }
+    }
   }
-  pass(`all ${SONGS.length} songs use known chords inside the first three frets`);
+  const bars = SONGS.map((s) => `${s.name.split(' ')[0]} ${s.beats.reduce((a, b) => a + b, 0) / s.meter}`);
+  pass(`all ${SONGS.length} songs fit the first three frets and fill whole bars (${bars.join(', ')})`);
 
   // --- geometry ------------------------------------------------------------
   for (const [name, w, h] of [['Galaxy S23', 360, 780], ['iPhone 12', 390, 844], ['Pixel 7', 412, 915]]) {
@@ -232,6 +246,25 @@ export async function run(browser, base, log) {
     else if (!/all \d+/.test(stat)) fail(`finishing a song shows "${stat}", not a completion`);
     else pass(`song advances ${seen.join(' → ')} and reports "${stat}"`);
     // The loop above already lifted off; no reset needed here.
+
+    // Playing a song back must use its own timing, not one chord per tick.
+    await page.locator('.fb-pick.is-song', { hasText: 'Heaven' }).first().click();
+    await page.waitForTimeout(300);
+    await page.evaluate(() => { window.__t = []; const s = AudioBufferSourceNode.prototype.start;
+      AudioBufferSourceNode.prototype.start = function (...a) { window.__t.push(Date.now()); return s.apply(this, a); }; });
+    await page.locator('.fb-hear').click();
+    await page.waitForTimeout(7600);
+    const gaps = await page.evaluate(() => {
+      // one strum is six plucks; collapse to chord onsets
+      const onsets = window.__t.filter((t, i, a) => i === 0 || t - a[i - 1] > 150);
+      return onsets.slice(1).map((t, i) => t - onsets[i]);
+    });
+    // Heaven's Door is |G D |Am |: two beats, two beats, then a full bar of
+    // four. So the third gap is the one that must double, not the second.
+    if (gaps.length < 3) fail(`playback produced only ${gaps.length + 1} chord onsets`);
+    else if (Math.abs(gaps[2] - gaps[0] * 2) > 400) {
+      fail(`playback ignores bar lengths: gaps ${gaps.slice(0, 3).join(', ')}ms, third should be double the first`);
+    } else pass(`playback follows the song's timing (${gaps.slice(0, 3).join(', ')}ms)`);
 
     // Synthesis buffers are cached per pitch; without that a strum rebuilds
     // ~500KB per string on the main thread.
