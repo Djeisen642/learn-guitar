@@ -7,6 +7,7 @@ import { chromium } from 'playwright';
 import { startServer } from './serve.mjs';
 import * as layout from './layout.mjs';
 import * as fretboard from './fretboard.mjs';
+import * as cache from './cache.mjs';
 
 const root = new URL('..', import.meta.url).pathname;
 const { base, stop } = await startServer(root);
@@ -15,7 +16,7 @@ const browser = await chromium.launch(
 );
 
 const log = (s) => console.log(s);
-const suites = [['layout & behaviour', layout], ['fretboard', fretboard]];
+const suites = [['layout & behaviour', layout], ['fretboard', fretboard], ['caching', cache]];
 let problems = [];
 
 for (const [name, suite] of suites) {
