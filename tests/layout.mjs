@@ -37,15 +37,23 @@ export async function run(browser, base, log) {
         document.documentElement.scrollWidth - document.documentElement.clientWidth);
       if (over > 0) fail(`${name} ${route}: ${over}px horizontal overflow`);
 
-      // Nothing may spill outside its own scroll container.
+      // Nothing may spill past the viewport unless some ancestor clips it.
+      // Checking only the immediate parent was too naive: the fretboard is
+      // deliberately run off the right edge and clipped by its stage, two
+      // levels up from the nut.
       const spill = await page.evaluate(() => {
+        const clipped = (el) => {
+          for (let p = el.parentElement; p; p = p.parentElement) {
+            if (getComputedStyle(p).overflowX !== 'visible') return true;
+          }
+          return false;
+        };
         const bad = [];
         for (const el of document.querySelectorAll('main *')) {
           const r = el.getBoundingClientRect();
           if (!r.width) continue;
-          if (r.right > innerWidth + 1 || r.left < -1) {
-            const p = el.parentElement;
-            if (!p || getComputedStyle(p).overflowX === 'visible') bad.push(el.className || el.tagName);
+          if ((r.right > innerWidth + 1 || r.left < -1) && !clipped(el)) {
+            bad.push(el.className || el.tagName);
           }
         }
         return [...new Set(bad)].slice(0, 4);
