@@ -193,6 +193,7 @@ export function PlayView(onLeave) {
     buttons,
     surface,
     h('p', { class: 'play-hint' }, 'Drag ↔ to strum · tap a string for one note · ✕ means skip it'),
+    h('p', { class: 'play-hint' }, 'Lock your phone\'s rotation so the strings can\'t flip mid-strum.'),
     h('div', { class: 'play-foot' }, notesToggle),
   );
 }

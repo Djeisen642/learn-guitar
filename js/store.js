@@ -2,7 +2,7 @@
 
 const KEY = 'learn-guitar/v1';
 
-const empty = () => ({ learned: {}, best: {}, streak: { count: 0, last: null } });
+const empty = () => ({ learned: {}, best: {}, streak: { count: 0, last: null }, flags: {} });
 
 let state = load();
 
@@ -66,6 +66,14 @@ export function streak() {
 }
 
 export const learnedCount = () => Object.keys(state.learned).length;
+
+/** One-off UI flags, e.g. "they've seen the rotation tip". */
+export const getFlag = (name) => !!state.flags?.[name];
+
+export function setFlag(name, on = true) {
+  state.flags = { ...state.flags, [name]: on };
+  save();
+}
 
 export function resetAll() {
   state = empty();

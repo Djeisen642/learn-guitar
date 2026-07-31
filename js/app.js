@@ -757,6 +757,31 @@ function render() {
   paintStreak();
 }
 
+// --- orientation -----------------------------------------------------------
+// The manifest asks for portrait, but that only binds an installed PWA on
+// Android — a browser tab and iOS both ignore it. So ask the platform to lock
+// where we're allowed to, and otherwise tell people how to do it themselves.
+(function orientationTip() {
+  const tip = document.getElementById('rotate-tip');
+  const landscape = window.matchMedia('(orientation: landscape) and (max-height: 560px)');
+
+  try {
+    // iOS Safari has screen.orientation but no lock(), and elsewhere this only
+    // resolves for an installed or fullscreen app — either way, never fatal.
+    screen.orientation?.lock?.('portrait')?.catch(() => {});
+  } catch { /* not permitted here */ }
+
+  const update = () => {
+    tip.hidden = !landscape.matches || store.getFlag('rotateTipSeen');
+  };
+  document.getElementById('rotate-dismiss').addEventListener('click', () => {
+    store.setFlag('rotateTipSeen');
+    tip.hidden = true;
+  });
+  landscape.addEventListener('change', update);
+  update();
+}());
+
 window.addEventListener('hashchange', render);
 document.addEventListener('click', unlockAudio, { once: true });
 

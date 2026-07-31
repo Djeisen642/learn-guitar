@@ -38,6 +38,9 @@ so there are no audio files to download and the whole app works offline once loa
 - Tap targets are at least 44px, double-tap zoom is disabled on controls, and the
   strum area claims its touches so the page can't scroll under your thumb.
 - Verified with no layout overflow from 320px up, plus landscape.
+- Asks the platform to lock to portrait where that's allowed (an installed PWA on
+  Android), and since neither a browser tab nor iOS honours that, a phone held in
+  landscape gets a dismissible banner explaining how to lock rotation by hand.
 
 ## Running locally
 
