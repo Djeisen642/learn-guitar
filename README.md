@@ -80,6 +80,22 @@ Set `CHROMIUM_PATH` if Playwright's bundled browser isn't available.
 
 `npm run icons` regenerates the PNG app icons from the SVG sources.
 
+## Cache busting
+
+The service worker's cache name is what invalidates it, and bumping it by hand is
+a step you only notice when you forget — the failure is silent, and people keep
+running the old app. So it isn't done by hand:
+
+- `tools/stamp-sw.mjs` hashes the shipped bytes and writes the result into the
+  cache name. The deploy workflow runs it, so every deploy that changes a file
+  changes the cache name. The value committed to git is only a placeholder.
+- The fetch strategy is stale-while-revalidate: a cached response is served
+  immediately and refreshed in the background, so even a missed stamp heals
+  itself on the next load rather than persisting forever.
+- `npm test` checks that every shipped module is precached — adding a module and
+  forgetting to list it is a bug that only appears offline — and that every
+  precached file actually exists and serves.
+
 ## Deployment
 
 `.github/workflows/pages.yml` publishes the repository root to GitHub Pages on every

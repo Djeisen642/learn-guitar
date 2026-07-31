@@ -23,6 +23,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
+      # Derive the service worker's cache name from the bytes being shipped, so
+      # a changed file always invalidates the old cache. Doing it here rather
+      # than in git keeps deploys honest without a manual version bump.
+      - name: Stamp service worker cache version
+        run: node tools/stamp-sw.mjs
       # The site is plain static files, so the repo root is the artifact.
       - uses: actions/upload-pages-artifact@v3
         with:
