@@ -400,6 +400,48 @@ export const SONGS = [
   },
 ];
 
+// Strumming patterns for automatic playback, as [beat offset within the bar,
+// direction]. A 4/4 pattern doesn't fit a waltz or a 6/8, so there's one per
+// meter rather than one for everything.
+const STRUM_BY_METER = {
+  // The one everyone uses: D - D U - U D U across the eight eighths.
+  4: [[0, 'down'], [1, 'down'], [1.5, 'up'], [2.5, 'up'], [3, 'down'], [3.5, 'up']],
+  // Waltz: one strum per beat, so 3/4 keeps its lilt.
+  3: [[0, 'down'], [1, 'down'], [2, 'down']],
+  // 6/8 rolls in two groups of three.
+  6: [[0, 'down'], [1, 'up'], [2, 'up'], [3, 'down'], [4, 'up'], [5, 'up']],
+};
+
+/**
+ * Expand a song into the strums that actually play it: walks the whole thing in
+ * beats and lays the meter's pattern over the top, so a chord starting halfway
+ * through a bar picks up that bar's remaining strums rather than restarting the
+ * pattern. Pure, so the timing can be checked without listening to it.
+ */
+export function strumSchedule(song) {
+  const pattern = STRUM_BY_METER[song.meter] || STRUM_BY_METER[4];
+  const total = song.beats.reduce((a, b) => a + b, 0);
+
+  // Which chord is sounding at a given beat.
+  const spans = [];
+  let at = 0;
+  song.chords.forEach((id, i) => {
+    spans.push({ from: at, to: at + song.beats[i], id });
+    at += song.beats[i];
+  });
+
+  const out = [];
+  for (let bar = 0; bar * song.meter < total; bar++) {
+    for (const [offset, direction] of pattern) {
+      const beat = bar * song.meter + offset;
+      if (beat >= total) break;
+      const span = spans.find((s) => beat >= s.from && beat < s.to);
+      if (span) out.push({ beat, chord: span.id, direction });
+    }
+  }
+  return out;
+}
+
 // Strumming patterns, written as down/up over one bar of 4/4.
 export const STRUMS = [
   { name: 'All down', pattern: ['D', 'D', 'D', 'D'], counts: ['1', '2', '3', '4'], note: 'Start here. Keep the wrist loose and the tempo dead even.' },

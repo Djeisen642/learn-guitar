@@ -9,7 +9,7 @@
 // physical units are fiction on a phone (1mm is always 3.78px regardless of the
 // real display), so declaring `43mm` would produce a neck two thirds of life size.
 
-import { CHORD_BY_ID, SONGS } from './data.js';
+import { CHORD_BY_ID, SONGS, strumSchedule } from './data.js';
 import { strum, unlockAudio } from './audio.js';
 import * as haptics from './haptics.js';
 import * as store from './store.js';
@@ -274,14 +274,14 @@ export function FretboardView(onLeave) {
     if (!song) return;
     unlockAudio();
     hearBtn.classList.add('is-playing');
-    let at = 0;
-    song.chords.forEach((id, i) => {
-      const c = CHORD_BY_ID[id];
-      const beats = song.beats?.[i] || song.meter || 4;
-      playTimers.push(setTimeout(() => strum(c), at * 1000));
-      at += (beats * 60) / (song.bpm || 90);
-    });
-    playTimers.push(setTimeout(stopPlayback, at * 1000));
+    const secondsPerBeat = 60 / (song.bpm || 90);
+    const schedule = strumSchedule(song);
+    for (const s of schedule) {
+      const c = CHORD_BY_ID[s.chord];
+      playTimers.push(setTimeout(() => strum(c, s.direction), s.beat * secondsPerBeat * 1000));
+    }
+    const total = song.beats.reduce((a, b) => a + b, 0);
+    playTimers.push(setTimeout(stopPlayback, total * secondsPerBeat * 1000));
   }
   onLeave(stopPlayback);
 
