@@ -84,7 +84,7 @@ function h(tag, props = {}, ...kids) {
  * One target per finger, not per string: a finger barring three strings is a
  * single thing your hand does, so it's drawn and judged as one bar.
  */
-function targetsFor(chord) {
+function targetsFor(chord, join = true) {
   const groups = new Map();
   chord.frets.forEach((fret, s) => {
     if (fret <= 0) return;
@@ -93,7 +93,60 @@ function targetsFor(chord) {
     if (!groups.has(key)) groups.set(key, { fret, finger, strings: [] });
     groups.get(key).strings.push(s);
   });
-  return [...groups.values()];
+  const targets = [...groups.values()];
+  return join ? joinPairs(targets) : targets;
+}
+
+/**
+ * Neighbouring strings stopped at the same fret share a finger: at 7.3mm
+ * spacing two fingertips fight each other on glass, and flattening one finger
+ * across two strings is a shape a hand can actually make — it's how most people
+ * play the top two strings of Dsus4, and the easy F needs it outright.
+ *
+ * Never three under one finger. So a run of three becomes two targets rather
+ * than one: pairs are taken from the top string downwards, which leaves any odd
+ * finger on the lowest string of the run and keeps the numbering reading in
+ * order. A major comes out as index on the D string, middle across G and B.
+ */
+function joinPairs(targets) {
+  const byFret = new Map();
+  for (const t of targets) {
+    if (t.strings.length !== 1) continue;      // real barres already span strings
+    if (!byFret.has(t.fret)) byFret.set(t.fret, []);
+    byFret.get(t.fret).push(t);
+  }
+
+  const joined = new Map();                    // target -> merged replacement
+  for (const group of byFret.values()) {
+    group.sort((a, b) => a.strings[0] - b.strings[0]);
+    let run = [group[0]];
+    const runs = [];
+    for (let i = 1; i < group.length; i++) {
+      if (group[i].strings[0] === run[run.length - 1].strings[0] + 1) run.push(group[i]);
+      else { runs.push(run); run = [group[i]]; }
+    }
+    runs.push(run);
+
+    for (const r of runs) {
+      // Walk back from the top string in twos; an odd finger is left on its own
+      // at the bottom of the run rather than making a three.
+      for (let i = r.length - 1; i >= 1; i -= 2) {
+        const lower = r[i - 1];
+        const upper = r[i];
+        joined.set(lower, {
+          fret: lower.fret,
+          finger: Math.min(lower.finger, upper.finger) || lower.finger,
+          strings: [lower.strings[0], upper.strings[0]],
+          pair: true,
+        });
+        joined.set(upper, null);               // absorbed
+      }
+    }
+  }
+
+  return targets
+    .map((t) => (joined.has(t) ? joined.get(t) : t))
+    .filter(Boolean);
 }
 
 export function FretboardView(onLeave) {
@@ -186,7 +239,8 @@ export function FretboardView(onLeave) {
   // --- drawing -------------------------------------------------------------
   function paint() {
     measure();
-    targets = targetsFor(chord).map((t) => ({ ...t, covered: false, el: null }));
+    targets = targetsFor(chord, !store.getFlag('soloFingers'))
+      .map((t) => ({ ...t, covered: false, el: null }));
 
     board.textContent = '';
     board.style.width = `${boardW}px`;
@@ -238,7 +292,9 @@ export function FretboardView(onLeave) {
         h('span', { class: 'fb-target-label', style: `top:${r.cy - r.y1}px` },
           h('span', { class: 'fb-target-num' }, t.finger ? String(t.finger) : '•'),
           t.finger ? h('span', { class: 'fb-target-name' },
-            t.strings.length > 1 ? `${FINGER_NAMES[t.finger]} bar` : FINGER_NAMES[t.finger]) : null,
+            t.pair ? `${FINGER_NAMES[t.finger]} ×2`
+              : t.strings.length > 1 ? `${FINGER_NAMES[t.finger]} bar`
+                : FINGER_NAMES[t.finger]) : null,
         ),
       );
       t.el = el;
@@ -401,6 +457,11 @@ export function FretboardView(onLeave) {
     setTimeout(() => board.classList.remove('is-win'), 600);
 
     if (song) {
+      // Cancel anything still sounding first. Lifting off mid-bar re-arms the
+      // detector, so re-pressing used to lay a second bar over the first and
+      // queue a second advance with it.
+      stopPlayback();
+
       // You fret, the phone strums: hold the shape and it plays that chord's
       // bar in the song's own rhythm, then moves on. A single strike told you
       // the shape was right but never sounded like the song.
@@ -566,6 +627,28 @@ export function FretboardView(onLeave) {
   });
   paintBuzz();
 
+  // Sharing a finger between two strings is a real technique, but it isn't the
+  // fingering the chord is written with — so it's a choice, not a rule. Joined
+  // is the default because that's what fits on glass; turn it off to drill the
+  // shape exactly as a teacher would write it.
+  const joinBtn = h('button', { type: 'button', class: 'fb-buzz fb-join' });
+  function paintJoin() {
+    const solo = store.getFlag('soloFingers');
+    joinBtn.textContent = solo ? 'one each' : 'join ×2';
+    joinBtn.classList.toggle('is-on', !solo);
+    joinBtn.setAttribute('aria-pressed', String(!solo));
+    joinBtn.title = solo
+      ? 'One finger per string, exactly as the chord is written. Tap to let neighbouring strings share a finger.'
+      : 'Neighbouring strings at the same fret share one flattened finger. Tap for one finger per string.';
+  }
+  joinBtn.addEventListener('click', () => {
+    store.setFlag('soloFingers', !store.getFlag('soloFingers'));
+    paintJoin();
+    paint();
+    haptics.tick();
+  });
+  paintJoin();
+
   return h('div', { class: 'fb-page' },
     stage,
     h('div', { class: 'fb-side' },
@@ -575,6 +658,7 @@ export function FretboardView(onLeave) {
       nextEl,
       hearBtn,
       strip,
+      joinBtn,
       buzzBtn,
     ),
   );
