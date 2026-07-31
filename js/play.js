@@ -54,8 +54,11 @@ export function PlayView(onLeave) {
     const marker = h('span', { class: 'lane-marker' });
     const wire = h('span', { class: 'lane-wire' });
     const label = h('span', { class: 'lane-note' });
-    const lane = h('div', { class: 'lane', 'data-s': String(s) },
+    const lane = h('button', { class: 'lane', type: 'button', 'data-s': String(s) },
       marker, h('span', { class: 'lane-wire-box' }, wire), label);
+    // Keyboard-generated clicks carry detail 0; touch/mouse are handled by the
+    // strum gesture below, so this only serves keyboard and screen-reader users.
+    lane.addEventListener('click', (e) => { if (e.detail === 0) hitLane(s); });
     lanes.push({ lane, marker, wire, label });
     surface.appendChild(lane);
   }
@@ -69,9 +72,12 @@ export function PlayView(onLeave) {
       lane.classList.toggle('is-muted', fret < 0);
       marker.className = 'lane-marker' + (fret > 0 ? ' is-fretted' : fret === 0 ? ' is-open' : ' is-x');
       marker.textContent = fret > 0 ? String(fret) : fret === 0 ? '○' : '✕';
-      marker.title = fret > 0
-        ? `Fret ${fret} with your ${FINGER_NAMES[finger] || 'finger'}`
-        : fret === 0 ? 'Open string' : 'Do not play this string';
+      const how = fret > 0
+        ? `fret ${fret} with your ${FINGER_NAMES[finger] || 'finger'}`
+        : fret === 0 ? 'open string' : 'do not play this string';
+      marker.title = how;
+      lane.setAttribute('aria-label',
+        `${STRING_LABELS[s]} string, ${how}${midi == null ? '' : `, sounds ${noteName(midi)}`}`);
 
       // Thicker wires for the lower strings, as on a real guitar.
       wire.style.width = `${5 - s * 0.55}px`;

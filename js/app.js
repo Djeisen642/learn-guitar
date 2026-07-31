@@ -17,6 +17,30 @@ function runTeardown() {
   teardown = [];
 }
 
+// Timed drills are useless if the phone dims mid-count, so hold a screen wake
+// lock while one is running. Unsupported browsers just carry on without it.
+let wakeLock = null;
+async function keepAwake(on) {
+  try {
+    if (on) {
+      if (!wakeLock && navigator.wakeLock) wakeLock = await navigator.wakeLock.request('screen');
+    } else if (wakeLock) {
+      const held = wakeLock;
+      wakeLock = null;
+      await held.release();
+    }
+  } catch {
+    wakeLock = null; // denied or released by the system — not worth surfacing
+  }
+}
+
+/** Run `stop` if the user switches away, so metronomes don't burst on return. */
+function stopWhenHidden(stop) {
+  const onHide = () => { if (document.hidden) stop(); };
+  document.addEventListener('visibilitychange', onHide);
+  return () => document.removeEventListener('visibilitychange', onHide);
+}
+
 // --- tiny DOM helper -------------------------------------------------------
 function h(tag, props = {}, ...kids) {
   const node = document.createElement(tag);
@@ -192,7 +216,7 @@ function openSheet(id) {
 
   sheet.textContent = '';
   sheet.append(
-    h('button', { class: 'sheet-close', type: 'button', 'aria-label': 'Close', onclick: () => history.back() }, '✕'),
+    h('button', { class: 'sheet-close', type: 'button', 'aria-label': 'Close', onclick: dismissSheet }, '✕'),
     h('div', { class: 'sheet-head' },
       h('h2', {}, chord.name),
       h('p', {}, chord.full),
@@ -216,13 +240,23 @@ function openSheet(id) {
   sheet.scrollTop = 0;
 }
 
+// True once a normal tab has rendered, so we know going back stays in the app.
+// Someone opening a shared #/chord/… link directly would otherwise be thrown
+// off the site by the close button.
+let hasRoutedInApp = false;
+
+function dismissSheet() {
+  if (hasRoutedInApp) history.back();
+  else go('#/chords');
+}
+
 function closeSheet() {
   sheet.hidden = true;
   backdrop.hidden = true;
   document.body.classList.remove('sheet-open');
 }
 
-backdrop.addEventListener('click', () => history.back());
+backdrop.addEventListener('click', dismissSheet);
 
 // ---------------------------------------------------------------------------
 // Practice hub
@@ -285,6 +319,7 @@ function OmcView(a, b) {
     running = false;
     clearInterval(tick);
     tick = null;
+    keepAwake(false);
     tapBtn.classList.remove('is-live');
     startBtn.textContent = 'Start';
     if (finished) {
@@ -311,23 +346,37 @@ function OmcView(a, b) {
     tapBtn.classList.add('is-live');
     tapBtn.textContent = 'Tap on every change';
     click(true);
+    keepAwake(true);
+
+    // Count down against a wall-clock deadline: a plain 1s interval drifts and
+    // stalls outright while the phone is asleep or the tab is backgrounded.
+    const deadline = Date.now() + 60_000;
+    let lastShown = 60;
     tick = setInterval(() => {
-      remaining -= 1;
-      timeEl.textContent = String(remaining);
-      if (remaining <= 5 && remaining > 0) click(false);
+      remaining = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+      if (remaining !== lastShown) {
+        lastShown = remaining;
+        timeEl.textContent = String(remaining);
+        if (remaining <= 5 && remaining > 0) click(false);
+      }
       if (remaining <= 0) stop(true);
-    }, 1000);
-    onLeave(() => clearInterval(tick));
+    }, 200);
+    onLeave(() => { clearInterval(tick); keepAwake(false); });
   }
 
   startBtn.addEventListener('click', start);
-  tapBtn.addEventListener('click', () => {
+
+  const registerTap = () => {
     if (!running) return start();
     count += 1;
     countEl.textContent = String(count);
     tapBtn.classList.add('is-hit');
     setTimeout(() => tapBtn.classList.remove('is-hit'), 90);
-  });
+  };
+  // pointerdown, not click: counting changes should feel instant under a thumb.
+  tapBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); registerTap(); });
+  // Keyboard-generated clicks have detail 0, so this won't double-count taps.
+  tapBtn.addEventListener('click', (e) => { if (e.detail === 0) registerTap(); });
   tapBtn.textContent = 'Tap to start';
 
   const diagrams = h('div', { class: 'omc-pair' });
@@ -396,6 +445,7 @@ function DrillView() {
   const beatEl = h('div', { class: 'beats' }, [0, 1, 2, 3].map(() => h('i')));
 
   function paintChords() {
+    if (!selected.length) return;
     const cur = CHORD_BY_ID[selected[idx % selected.length]];
     const nxt = CHORD_BY_ID[selected[(idx + 1) % selected.length]];
     nowEl.textContent = '';
@@ -426,14 +476,16 @@ function DrillView() {
   }
 
   const startBtn = h('button', { class: 'btn btn-primary btn-wide', type: 'button' }, 'Start');
+  function stopDrill() {
+    if (!running) return;
+    running = false;
+    clearInterval(timer);
+    keepAwake(false);
+    startBtn.textContent = 'Start';
+    [...beatEl.children].forEach((el) => el.classList.remove('is-on'));
+  }
   function toggle() {
-    if (running) {
-      running = false;
-      clearInterval(timer);
-      startBtn.textContent = 'Start';
-      [...beatEl.children].forEach((el) => el.classList.remove('is-on'));
-      return;
-    }
+    if (running) return stopDrill();
     if (selected.length < 2) return;
     unlockAudio();
     running = true;
@@ -444,10 +496,12 @@ function DrillView() {
     startBtn.textContent = 'Stop';
     store.touchStreak();
     paintStreak();
+    keepAwake(true);
     timer = setInterval(scheduler, 25);
-    onLeave(() => clearInterval(timer));
+    onLeave(() => { clearInterval(timer); keepAwake(false); });
   }
   startBtn.addEventListener('click', toggle);
+  onLeave(stopWhenHidden(stopDrill));
 
   const chips = h('div', { class: 'chip-row wrap' }, CHORDS.map((c) =>
     h('button', {
@@ -457,6 +511,7 @@ function DrillView() {
         if (selected.includes(c.id)) selected = selected.filter((x) => x !== c.id);
         else selected = [...selected, c.id];
         e.currentTarget.classList.toggle('is-on', selected.includes(c.id));
+        if (selected.length < 2) stopDrill();
         if (!running) { idx = 0; paintChords(); }
       },
     }, c.name)));
@@ -533,22 +588,26 @@ function StrumView() {
   }
 
   const startBtn = h('button', { class: 'btn btn-primary btn-wide', type: 'button' }, 'Start');
+  function stopStrum() {
+    if (!running) return;
+    running = false;
+    clearInterval(timer);
+    keepAwake(false);
+    startBtn.textContent = 'Start';
+    stageEl.querySelectorAll('.strum-cell').forEach((el) => el.classList.remove('is-on'));
+  }
   startBtn.addEventListener('click', () => {
-    if (running) {
-      running = false;
-      clearInterval(timer);
-      startBtn.textContent = 'Start';
-      stageEl.querySelectorAll('.strum-cell').forEach((el) => el.classList.remove('is-on'));
-      return;
-    }
+    if (running) return stopStrum();
     unlockAudio();
     running = true;
     step = 0;
     nextTime = now() + 0.2;
     startBtn.textContent = 'Stop';
+    keepAwake(true);
     timer = setInterval(scheduler, 25);
-    onLeave(() => clearInterval(timer));
+    onLeave(() => { clearInterval(timer); keepAwake(false); });
   });
+  onLeave(stopWhenHidden(stopStrum));
 
   const bpmLabel = h('output', {}, `${bpm} bpm`);
 
@@ -593,8 +652,16 @@ function SongsView() {
   PROGRESSIONS.forEach((p) => {
     const body = h('div', { class: 'prog-keys' });
     p.keys.forEach((k) => {
+      // Key name and playback share the top line so the chords below always
+      // read as a single uninterrupted row.
       const row = h('div', { class: 'prog-key' },
-        h('span', { class: 'prog-keyname' }, `Key of ${k.key}`),
+        h('div', { class: 'prog-key-top' },
+          h('span', { class: 'prog-keyname' }, `Key of ${k.key}`),
+          h('button', {
+            class: 'btn btn-small', type: 'button',
+            onclick: (e) => playProgression(k.chords, e.currentTarget),
+          }, '▶︎ Hear it'),
+        ),
         h('div', { class: 'prog-chords' }, k.chords.map((id) => {
           const c = CHORD_BY_ID[id];
           return h('button', {
@@ -602,10 +669,6 @@ function SongsView() {
             onclick: () => (c ? go(`#/chord/${c.id}`) : null),
           }, c ? c.name : id);
         })),
-        h('button', {
-          class: 'btn btn-small', type: 'button',
-          onclick: (e) => playProgression(k.chords, e.currentTarget),
-        }, '▶︎ Hear it'),
       );
       body.appendChild(row);
     });
@@ -663,6 +726,7 @@ function render() {
     return;
   }
   closeSheet();
+  hasRoutedInApp = true;
 
   let node;
   switch (parts[0]) {

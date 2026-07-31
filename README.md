@@ -26,6 +26,19 @@ dependencies, no accounts — just static files served by GitHub Pages.
 Chords are synthesised in the browser with Karplus–Strong plucked-string synthesis,
 so there are no audio files to download and the whole app works offline once loaded.
 
+## Built for a phone
+
+- Installable to the home screen (PNG icons — iOS ignores SVG ones) and fully usable
+  offline behind a cache-first service worker.
+- Timed drills hold a screen wake lock so the phone doesn't dim mid-count, and the
+  one-minute countdown runs against a wall-clock deadline so it can't drift or stall.
+  Metronomes stop when you switch away rather than bursting on return.
+- Synthesised buffers are cached per pitch, so a six-string strum allocates nothing
+  after the first time; everything runs through a limiter so stacked notes don't clip.
+- Tap targets are at least 44px, double-tap zoom is disabled on controls, and the
+  strum area claims its touches so the page can't scroll under your thumb.
+- Verified with no layout overflow from 320px up, plus landscape.
+
 ## Running locally
 
 Any static server works — ES modules and the service worker need HTTP, not `file://`:

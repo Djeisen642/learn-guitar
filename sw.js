@@ -1,11 +1,15 @@
 // Cache-first service worker so the app works on a phone with no signal.
-const CACHE = 'fretwise-v2';
+const CACHE = 'fretwise-v3';
 const ASSETS = [
   './',
   './index.html',
   './styles.css',
   './icon.svg',
   './icon-maskable.svg',
+  './icon-180.png',
+  './icon-192.png',
+  './icon-512.png',
+  './icon-maskable-512.png',
   './manifest.webmanifest',
   './js/app.js',
   './js/data.js',
