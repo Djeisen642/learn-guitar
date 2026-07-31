@@ -396,6 +396,9 @@ body.play-mode .topbar { display: none; }
   flex: 1; display: flex; justify-content: flex-start; align-items: flex-start; min-height: 0;
   /* A hair of gutter: the nut overhangs 2px and a low-E target overhangs ~1px. */
   padding-left: 3px;
+  /* Belt and braces: absolutely-positioned strings paint above the static chord
+     buttons, so any mis-measurement would draw the neck straight through them. */
+  overflow: hidden;
 }
 
 /* The board itself is sized in JS from real neck measurements. */

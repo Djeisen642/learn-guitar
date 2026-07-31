@@ -23,6 +23,7 @@ const FRETS = 3;          // every open chord lives inside frets 1-3
 // this is the honest average.
 const PX_PER_MM = 6.05;
 
+const MARKER_PX = 30;     // gap above the nut for the o / x row; matches .fb margin-top
 const HOLD_MS = 260;      // shape must be held, not just brushed
 const TOUCH_MM = 5.2;     // how close a fingertip must land
 const DOT_MM = 3.8;       // drawn fingertip radius — smaller than the tolerance
@@ -77,6 +78,7 @@ export function FretboardView(onLeave) {
   let holdTimer = null;
 
   const board = h('div', { class: 'fb' });
+  const stage = h('div', { class: 'fb-stage' }, board);
   const nameEl = h('div', { class: 'fb-chord' });
   const statEl = h('div', { class: 'fb-stat' });
   const pipsEl = h('div', { class: 'fb-pips' });
@@ -87,9 +89,10 @@ export function FretboardView(onLeave) {
   let boardW = 0;
 
   function measure() {
-    const markerPx = 30;                       // room above the nut for o / x
-    const avail = board.parentElement
-      ? board.parentElement.getBoundingClientRect().height - markerPx
+    // MARKER_PX must match .fb's top margin, which is layout the board sits
+    // below rather than inside.
+    const avail = stage
+      ? stage.getBoundingClientRect().height - MARKER_PX
       : 600;
     const trueH = fretMM(FRETS) * PX_PER_MM;
     const trueW = (STRING_MM * 5 + EDGE_MM * 2) * PX_PER_MM;
@@ -302,12 +305,21 @@ export function FretboardView(onLeave) {
     }, c.name));
   });
 
-  const stage = h('div', { class: 'fb-stage' }, board);
-  const onResize = () => paint();
-  window.addEventListener('resize', onResize);
-  onLeave(() => window.removeEventListener('resize', onResize));
+  // Measuring once is not enough: filling in the finger pips grows the header,
+  // which shrinks the space the board was just sized against. Watching the stage
+  // catches that, plus fonts loading, rotation, and the browser bar sliding away.
+  let settling = false;
+  const ro = new ResizeObserver(() => {
+    if (settling) return;
+    const before = boardH;
+    settling = true;
+    paint();
+    settling = false;
+    if (Math.abs(before - boardH) > 1) paint();
+  });
+  ro.observe(stage);
+  onLeave(() => ro.disconnect());
 
-  // The board needs its parent measured, so paint after layout settles.
   requestAnimationFrame(paint);
 
   return h('div', { class: 'fb-page' },
