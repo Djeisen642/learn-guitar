@@ -127,7 +127,8 @@ export async function run(browser, base, log) {
 
     // Two neighbouring strings at one fret share a finger, since two fingertips
     // at 7.3mm fight each other on glass. Never three under one finger, so A's
-    // run of three comes out as a pair plus a single, not one wide bar.
+    // run of three comes out as a pair plus a single — and specifically as the
+    // mini-barre people actually play: index across D and G, middle on B.
     const shapeOf = async (pick) => {
       await page.locator('.fb-pick', { hasText: new RegExp(`^${pick}$`) }).first().click();
       await page.waitForTimeout(200);
@@ -137,8 +138,7 @@ export async function run(browser, base, log) {
     const em = await shapeOf('Em');
     const amaj = await shapeOf('A');
     if (em.length !== 1 || !em[0].includes('×2')) fail(`${name}: Em should join into one target, got ${em.join(', ')}`);
-    else if (amaj.length !== 2) fail(`${name}: A should join into two targets, got ${amaj.join(', ')}`);
-    else if (amaj.filter((l) => l.includes('×2')).length !== 1) fail(`${name}: A joined wrongly: ${amaj.join(', ')}`);
+    else if (amaj.join(' + ') !== 'index ×2 + middle') fail(`${name}: A should be the mini-barre "index ×2 + middle", got ${amaj.join(' + ')}`);
     else pass(`${name}: Em joins to "${em[0]}", A to "${amaj.join(' + ')}"`);
 
     // Joining is a choice: off, every string gets the finger the chord is

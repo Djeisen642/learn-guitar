@@ -104,9 +104,11 @@ function targetsFor(chord, join = true) {
  * play the top two strings of Dsus4, and the easy F needs it outright.
  *
  * Never three under one finger. So a run of three becomes two targets rather
- * than one: pairs are taken from the top string downwards, which leaves any odd
- * finger on the lowest string of the run and keeps the numbering reading in
- * order. A major comes out as index on the D string, middle across G and B.
+ * than one, and which two is not arbitrary: pairs are taken from the lowest
+ * string upwards, because the index is the finger that bars and the hand comes
+ * at the neck from the bass side. That gives A major the mini-barre every
+ * teacher reaches for — index flat across D and G, middle on B — rather than a
+ * middle finger stretched over G and B, which nobody plays.
  */
 function joinPairs(targets) {
   const byFret = new Map();
@@ -117,6 +119,7 @@ function joinPairs(targets) {
   }
 
   const joined = new Map();                    // target -> merged replacement
+  const absorbed = [];                         // fingers the joins made spare
   for (const group of byFret.values()) {
     group.sort((a, b) => a.strings[0] - b.strings[0]);
     let run = [group[0]];
@@ -128,11 +131,11 @@ function joinPairs(targets) {
     runs.push(run);
 
     for (const r of runs) {
-      // Walk back from the top string in twos; an odd finger is left on its own
-      // at the bottom of the run rather than making a three.
-      for (let i = r.length - 1; i >= 1; i -= 2) {
-        const lower = r[i - 1];
-        const upper = r[i];
+      // Pair upwards from the bass side in twos; an odd finger is left on its
+      // own at the top of the run rather than making a three.
+      for (let i = 0; i + 1 < r.length; i += 2) {
+        const lower = r[i];
+        const upper = r[i + 1];
         joined.set(lower, {
           fret: lower.fret,
           finger: Math.min(lower.finger, upper.finger) || lower.finger,
@@ -140,13 +143,20 @@ function joinPairs(targets) {
           pair: true,
         });
         joined.set(upper, null);               // absorbed
+        absorbed.push(upper.finger);
       }
     }
   }
 
+  // A shape that used three fingers now uses two, so the ones above the finger
+  // that got absorbed shuffle down. Without this A reads "index ×2, ring" and
+  // asks you to skip a finger for no reason; the mini-barre is index and middle.
+  const renumber = (f) => (f ? f - absorbed.filter((a) => a < f).length : f);
+
   return targets
     .map((t) => (joined.has(t) ? joined.get(t) : t))
-    .filter(Boolean);
+    .filter(Boolean)
+    .map((t) => ({ ...t, finger: renumber(t.finger) }));
 }
 
 export function FretboardView(onLeave) {
