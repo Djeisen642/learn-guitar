@@ -1,0 +1,15 @@
+{
+  "name": "chordgrip",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A mobile-first guitar chord trainer. The app itself is dependency-free static files; these are dev tools only.",
+  "scripts": {
+    "test": "node tests/run.mjs",
+    "serve": "node tests/serve.mjs",
+    "icons": "node tools/make-icons.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.49.0"
+  }
+}

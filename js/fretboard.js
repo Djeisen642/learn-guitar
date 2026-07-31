@@ -337,8 +337,9 @@ export function FretboardView(onLeave) {
 
   requestAnimationFrame(paint);
 
-  // Neck on the left running the full height; everything else lives in the
-  // column beside it. That reclaimed height is what buys true life size.
+  // Neck runs the full height against one screen edge; everything else lives in
+  // the column beside it. That reclaimed height is what buys true life size.
+  // CSS puts the neck on the right (row-reverse) — see .fb-page.
   return h('div', { class: 'fb-page' },
     stage,
     h('div', { class: 'fb-side' },

@@ -370,10 +370,12 @@ body.play-mode .topbar { display: none; }
   height: calc(100vh - var(--tabbar-h) - env(safe-area-inset-bottom));
   height: calc(100dvh - var(--tabbar-h) - env(safe-area-inset-bottom));
   /* Neck and controls side by side: the neck gets the full column height,
-     which is what lets it reach the size of a real one. */
-  flex-direction: row; align-items: stretch;
-  /* No left padding: the neck runs right up to the edge (see .fb-stage). */
-  padding: max(6px, env(safe-area-inset-top)) 8px 6px env(safe-area-inset-left);
+     which is what lets it reach the size of a real one. The neck sits on the
+     RIGHT because that is the edge your fingers come over when the phone is
+     held like a neck -- thumb behind, fingertips emerging on the far side. */
+  flex-direction: row-reverse; align-items: stretch;
+  /* No right padding: the neck runs right up to the edge (see .fb-stage). */
+  padding: max(6px, env(safe-area-inset-top)) env(safe-area-inset-right) 6px 8px;
   gap: 8px;
 }
 
@@ -398,13 +400,13 @@ body.play-mode .topbar { display: none; }
 }
 .fb-pip.is-on { background: var(--good); border: 2px solid var(--good); color: #fff; }
 
-/* Flush left, so you can hold the phone like a neck — thumb behind, fingers
-   curling over the edge onto the strings — rather than reaching across glass.
-   Low E is the left-hand string, which is the edge a fretting hand comes over. */
+/* Flush to the edge, so you can hold the phone like a neck — thumb behind,
+   fingers curling over the rim onto the strings — rather than reaching across
+   flat glass to a board floating in the middle. */
 .fb-stage {
   flex: none; display: flex; justify-content: flex-start; align-items: flex-start; min-height: 0;
-  /* A hair of gutter: the nut overhangs 2px and a low-E target overhangs ~1px. */
-  padding-left: 3px;
+  /* A hair of gutter: the nut overhangs 2px and an outer target overhangs ~1px. */
+  padding-right: 3px;
   /* Belt and braces: absolutely-positioned strings paint above the static chord
      buttons, so any mis-measurement would draw the neck straight through them. */
   overflow: hidden;
