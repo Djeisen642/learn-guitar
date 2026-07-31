@@ -369,16 +369,17 @@ body.play-mode .topbar { display: none; }
   display: flex; flex-direction: column;
   height: calc(100vh - var(--tabbar-h) - env(safe-area-inset-bottom));
   height: calc(100dvh - var(--tabbar-h) - env(safe-area-inset-bottom));
-  padding: max(8px, env(safe-area-inset-top)) 8px 6px;
+  /* No left padding: the neck runs right up to the edge (see .fb-stage). */
+  padding: max(8px, env(safe-area-inset-top)) 8px 6px env(safe-area-inset-left);
   gap: 6px;
 }
 
-.fb-head { text-align: center; flex: none; }
+.fb-head { text-align: left; flex: none; padding-left: 10px; }
 .fb-chord { font-size: 26px; font-weight: 700; line-height: 1.1; }
 .fb-stat { font-size: 12.5px; color: var(--text-dim); margin-top: 2px; min-height: 18px; }
 
 /* One pip per finger, mirroring the targets your hand is covering. */
-.fb-pips { display: flex; gap: 6px; justify-content: center; margin-top: 6px; min-height: 22px; }
+.fb-pips { display: flex; gap: 6px; justify-content: flex-start; margin-top: 6px; min-height: 22px; }
 .fb-pip {
   width: 22px; height: 22px; border-radius: 999px;
   display: grid; place-items: center;
@@ -388,7 +389,14 @@ body.play-mode .topbar { display: none; }
 }
 .fb-pip.is-on { background: var(--good); border: 2px solid var(--good); color: #fff; }
 
-.fb-stage { flex: 1; display: flex; justify-content: center; align-items: flex-start; min-height: 0; }
+/* Flush left, so you can hold the phone like a neck — thumb behind, fingers
+   curling over the edge onto the strings — rather than reaching across glass.
+   Low E is the left-hand string, which is the edge a fretting hand comes over. */
+.fb-stage {
+  flex: 1; display: flex; justify-content: flex-start; align-items: flex-start; min-height: 0;
+  /* A hair of gutter: the nut overhangs 2px and a low-E target overhangs ~1px. */
+  padding-left: 3px;
+}
 
 /* The board itself is sized in JS from real neck measurements. */
 .fb {
