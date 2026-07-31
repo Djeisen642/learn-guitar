@@ -11,6 +11,7 @@
 
 import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 
 const root = new URL('..', import.meta.url).pathname;
 const swPath = `${root}sw.js`;
@@ -21,9 +22,18 @@ export function precached(sw = readFileSync(swPath, 'utf8')) {
   return [...new Set(['index.html', ...listed])].sort();
 }
 
-/** Every ES module the app actually ships. */
-export function modules() {
-  return readdirSync(`${root}js`).filter((f) => f.endsWith('.js')).map((f) => `js/${f}`).sort();
+/**
+ * Every ES module the app actually ships, subdirectories included — this is
+ * what catches a new module that nobody remembered to precache, and it would be
+ * a poor guard if moving a file one folder down made it stop looking.
+ */
+export function modules(dir = 'js') {
+  return readdirSync(`${root}${dir}`, { withFileTypes: true })
+    .flatMap((e) => {
+      if (e.isDirectory()) return modules(join(dir, e.name));
+      return e.name.endsWith('.js') ? [join(dir, e.name)] : [];
+    })
+    .sort();
 }
 
 /**

@@ -104,17 +104,38 @@ push to `main`. Enable it once under **Settings → Pages → Source → GitHub 
 ## Layout
 
 ```
-index.html      app shell: header, view container, bottom tab bar, chord sheet
-styles.css      all styling; dark and light themes, safe-area aware
-js/data.js      chord shapes, curriculum stages, progressions, strum patterns
-js/diagram.js   renders a chord as an inline SVG diagram
-js/notes.js     tuning, note names, fret -> pitch maths
-js/audio.js     Karplus–Strong pluck synthesis and the metronome click
-js/fretboard.js the life-size neck: real fret maths, multi-touch finger targets
-js/store.js     localStorage progress: learned chords, best scores, day streak
-js/app.js       hash router and all views
-sw.js           cache-first service worker for offline use
+index.html        app shell: header, view container, bottom tab bar, chord sheet
+styles.css        all styling; dark and light themes, safe-area aware
+sw.js             cache-first service worker for offline use
+
+js/app.js         boot: wires the modules below together and renders once
+js/router.js      hash -> view, and the tab that goes with it
+js/chrome.js      the frame around the view: streak badge, tabs, rotation tip
+js/lifecycle.js   what a view registers so navigating away really stops it
+
+js/data.js        chord shapes, curriculum stages, progressions, songs, strums
+js/store.js       localStorage progress: learned chords, best scores, day streak
+js/notes.js       tuning, note names, fret -> pitch maths
+js/audio.js       Karplus–Strong pluck synthesis and the metronome click
+js/dom.js         the element helper every view builds with
+js/wake.js        screen wake lock, and stopping when the user looks away
+js/metronome.js   look-ahead beat scheduler, shared by the two click-track views
+js/diagram.js     renders a chord as an inline SVG diagram
+js/updates.js     picking up a newly deployed version
+
+js/fretboard.js   Play: what's drawn, what the touches mean, what the buttons do
+js/neck.js        the geometry behind it — no DOM, so it can be checked directly
+js/shapes.js      a chord's frets and fingers -> one target per finger
+js/playback.js    playing a song in its own rhythm, and the practice tempo
+
+js/views/*.js     one file per screen, plus shared.js for the common pieces
 ```
 
 Chord data uses one convention throughout: `frets` and `fingers` run from the low E
 (6th string) to the high E (1st), with `-1` for muted and `0` for open.
+
+Two rules keep the wiring honest. A view never cleans up after itself on the way
+out — it registers cleanup with `lifecycle.js` and the router empties that before
+it renders anything. And one screen hands work to another through the URL, never
+through a module variable: the Songs tab's "practise with the changer" link is
+`#/practice/drill/G-D-Em-C`, so it can be shared, reloaded and read.
