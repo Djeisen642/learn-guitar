@@ -375,8 +375,8 @@ body.play-mode .topbar { display: none; }
      held like a neck -- thumb behind, fingertips emerging on the far side. */
   flex-direction: row-reverse; align-items: stretch;
   /* No right padding: the neck runs right up to the edge (see .fb-stage). */
-  padding: max(6px, env(safe-area-inset-top)) env(safe-area-inset-right) 6px 8px;
-  gap: 8px;
+  padding: max(6px, env(safe-area-inset-top)) env(safe-area-inset-right) 6px 2px;
+  gap: 5px;
 }
 
 .fb-side {
@@ -405,8 +405,8 @@ body.play-mode .topbar { display: none; }
    flat glass to a board floating in the middle. */
 .fb-stage {
   flex: none; display: flex; justify-content: flex-start; align-items: flex-start; min-height: 0;
-  /* A hair of gutter: the nut overhangs 2px and an outer target overhangs ~1px. */
-  padding-right: 3px;
+  /* padding-right is set in JS: it keeps the outer string clear of the phone's
+     physical edge, which a fretboard doesn't have. */
   /* Belt and braces: absolutely-positioned strings paint above the static chord
      buttons, so any mis-measurement would draw the neck straight through them. */
   overflow: hidden;
@@ -499,11 +499,30 @@ body.play-mode .topbar { display: none; }
 .fb-strip::-webkit-scrollbar { display: none; }
 .fb-pick {
   flex: none; width: 100%; min-height: 44px;
-  appearance: none; font: inherit; font-size: 15px; font-weight: 650; cursor: pointer;
-  padding: 8px 12px; border-radius: 10px;
+  appearance: none; font: inherit; font-size: 13px; font-weight: 650; cursor: pointer;
+  padding: 8px 4px; border-radius: 10px;
   background: var(--bg-raised); border: 1px solid var(--line); color: var(--text);
 }
 .fb-pick.is-on { background: var(--accent); border-color: var(--accent); color: #17130d; }
+.fb-pick.is-song { font-size: 11.5px; font-weight: 600; line-height: 1.15; padding: 8px 5px; }
+
+.fb-listhead {
+  flex: none; font-size: 10px; font-weight: 700; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--text-dim);
+  padding: 6px 2px 2px;
+}
+.fb-listhead:first-child { padding-top: 0; }
+
+.fb-next {
+  flex: none; font-size: 11.5px; font-weight: 600; color: var(--text-dim);
+}
+.fb-progress { flex: none; display: flex; gap: 3px; flex-wrap: wrap; }
+.fb-progress i {
+  width: 100%; max-width: 14px; height: 4px; border-radius: 99px;
+  background: var(--line); flex: 1;
+}
+.fb-progress i.is-done { background: var(--good); }
+.fb-progress i.is-now { background: var(--accent); }
 
 .fb-buzz {
   flex: none; width: 100%; min-height: 40px;

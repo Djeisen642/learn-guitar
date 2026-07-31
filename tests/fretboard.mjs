@@ -86,6 +86,21 @@ export async function run(browser, base, log) {
       }
     }
 
+    // A phone has a rim and a case lip where a fretboard just ends flat, so the
+    // outer string must not sit hard against the screen edge.
+    const guardMM = await page.evaluate(() => {
+      const s = [...document.querySelectorAll('.fb-string')].pop().getBoundingClientRect();
+      return window.innerWidth - (s.left + s.width / 2);
+    }) / PX_PER_MM;
+    if (guardMM < 6.5) fail(`${name}: outer string only ${guardMM.toFixed(1)}mm from the screen edge`);
+    else pass(`${name}: outer string ${guardMM.toFixed(1)}mm clear of the phone's edge`);
+
+    // The narrow column must not clip its own labels.
+    const clipped = await page.evaluate(() => [...document.querySelectorAll('.fb-pick')]
+      .filter((e) => e.scrollWidth > e.clientWidth + 1).map((e) => e.textContent));
+    if (clipped.length) fail(`${name}: side list clips ${clipped.join(', ')}`);
+    else pass(`${name}: every song and chord label fits the column`);
+
     // Every chord's targets must sit on the board.
     for (const id of ['C', 'G', 'A', 'Fmini']) {
       await page.locator('.fb-pick', { hasText: new RegExp(`^${id === 'Fmini' ? 'F' : id}$`) }).first().click();
@@ -179,6 +194,29 @@ export async function run(browser, base, log) {
     if (!onChord.some(Array.isArray)) fail('completing a chord gives no distinct buzz pattern');
     else pass(`completed chord buzzes a pattern (${onChord.find(Array.isArray).join('-')}ms)`);
     await reset();
+
+    // Song mode: forming the chord has to move the sequence on, and the
+    // finished flourish has to survive the fingers that earned it still being
+    // on the glass — clearing it on repaint wiped it instantly.
+    await page.locator('.fb-pick.is-song').first().click();
+    await page.waitForTimeout(350);
+    const seen = [];
+    for (let i = 0; i < 4; i++) {
+      const at = await page.evaluate(() => [...document.querySelectorAll('.fb-target')].map((t) => {
+        const r = t.getBoundingClientRect();
+        return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+      }));
+      seen.push(await page.locator('.fb-chord').textContent());
+      await touch('touchStart', at);
+      await page.waitForTimeout(460);
+      await touch('touchEnd', []);
+      await page.waitForTimeout(300);
+    }
+    const stat = await page.locator('.fb-stat').textContent();
+    if (new Set(seen).size < 2) fail(`song did not advance: stayed on ${seen.join(', ')}`);
+    else if (!/all \d+/.test(stat)) fail(`finishing a song shows "${stat}", not a completion`);
+    else pass(`song advances ${seen.join(' → ')} and reports "${stat}"`);
+    // The loop above already lifted off; no reset needed here.
 
     // Synthesis buffers are cached per pitch; without that a strum rebuilds
     // ~500KB per string on the main thread.
