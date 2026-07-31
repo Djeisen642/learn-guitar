@@ -52,9 +52,11 @@ export async function run(browser, base, log) {
     if (!sched.length) { fail(`song "${s.name}" produces no strums`); continue; }
     if (sched.some((x) => x.beat >= total || x.beat < 0)) fail(`song "${s.name}" strums outside its own length`);
     if (sched.some((x, i) => i && x.beat <= sched[i - 1].beat)) fail(`song "${s.name}" strums out of order`);
-    if (!sched.some((x) => x.direction === 'up') && s.meter !== 3) {
-      fail(`song "${s.name}" never strums upward`);
-    }
+    // Every strum at the same strength is what makes a pattern sound like a
+    // metronome. Beat one has to carry more than the offbeats.
+    if (sched.some((x) => !(x.velocity > 0 && x.velocity <= 1))) fail(`song "${s.name}" has a strum with no usable velocity`);
+    if (new Set(sched.map((x) => x.velocity)).size < 2) fail(`song "${s.name}" strums every beat equally hard`);
+    if (!sched.some((x) => x.direction === 'up')) fail(`song "${s.name}" never strums upward`);
     // Every strum must sound the chord that is actually current at that beat.
     let at = 0;
     const spans = s.chords.map((id, i) => { const from = at; at += s.beats[i]; return { from, to: at, id }; });
