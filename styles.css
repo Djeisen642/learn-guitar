@@ -505,6 +505,14 @@ body.play-mode .topbar { display: none; }
 }
 .fb-pick.is-on { background: var(--accent); border-color: var(--accent); color: #17130d; }
 
+.fb-buzz {
+  flex: none; width: 100%; min-height: 40px;
+  appearance: none; font: inherit; font-size: 11px; font-weight: 600; cursor: pointer;
+  padding: 6px; border-radius: 8px;
+  background: transparent; border: 1px solid var(--line); color: var(--text-dim);
+}
+.fb-buzz.is-on { color: var(--accent); border-color: var(--accent); }
+
 /* --- songs --------------------------------------------------------------- */
 
 .prog {

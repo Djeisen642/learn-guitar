@@ -145,6 +145,27 @@ export async function run(browser, base, log) {
       await reset();
     }
 
+    // Haptics: a pulse under ~10ms is too short for a phone's motor to spin up,
+    // so the old 6ms ticks were felt by nobody.
+    await page.evaluate(() => {
+      window.__buzz = [];
+      navigator.vibrate = (p) => { window.__buzz.push(p); return true; };
+    });
+    await touch('touchStart', spots.slice(0, 1));
+    await page.waitForTimeout(160);
+    const onLand = await page.evaluate(() => window.__buzz.slice());
+    if (!onLand.length) fail('no vibration when a finger lands on its target');
+    else if (onLand.some((p) => typeof p === 'number' && p < 10)) fail(`vibration pulse too short to feel: ${onLand.join(',')}ms`);
+    else pass(`finger landing buzzes (${onLand.join(', ')}ms)`);
+
+    await page.evaluate(() => { window.__buzz = []; });
+    await touch('touchStart', spots);
+    await page.waitForTimeout(520);
+    const onChord = await page.evaluate(() => window.__buzz.slice());
+    if (!onChord.some(Array.isArray)) fail('completing a chord gives no distinct buzz pattern');
+    else pass(`completed chord buzzes a pattern (${onChord.find(Array.isArray).join('-')}ms)`);
+    await reset();
+
     // Synthesis buffers are cached per pitch; without that a strum rebuilds
     // ~500KB per string on the main thread.
     await page.evaluate(() => {

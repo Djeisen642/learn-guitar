@@ -11,6 +11,7 @@
 
 import { CHORD_BY_ID } from './data.js';
 import { strum, unlockAudio } from './audio.js';
+import * as haptics from './haptics.js';
 import * as store from './store.js';
 
 const SCALE_MM = 647.7;   // 25.5" scale length, the Fender/Martin standard
@@ -295,7 +296,7 @@ export function FretboardView(onLeave) {
         t.covered = on;
         t.el.classList.toggle('is-on', on);
         t.pip?.classList.toggle('is-on', on);
-        if (on && navigator.vibrate) navigator.vibrate(6);
+        if (on) haptics.tick();
       }
       if (!on) all = false;
     });
@@ -320,7 +321,7 @@ export function FretboardView(onLeave) {
     store.touchStreak();
     unlockAudio();
     strum(chord);                       // the shape is right, so it rings
-    if (navigator.vibrate) navigator.vibrate([12, 40, 12]);
+    haptics.chord();
     board.classList.add('is-win');
     setTimeout(() => board.classList.remove('is-win'), 600);
     statEl.textContent = isBest
@@ -393,12 +394,27 @@ export function FretboardView(onLeave) {
   // Neck runs the full height against one screen edge; everything else lives in
   // the column beside it. That reclaimed height is what buys true life size.
   // CSS puts the neck on the right (row-reverse) — see .fb-page.
+  // Only worth showing where vibration exists at all — Safari has no API for it.
+  const buzzBtn = haptics.isSupported() ? h('button', {
+    type: 'button',
+    class: 'fb-buzz' + (haptics.isEnabled() ? ' is-on' : ''),
+    'aria-pressed': String(haptics.isEnabled()),
+    onclick: (e) => {
+      const on = !haptics.isEnabled();
+      haptics.setEnabled(on);
+      e.currentTarget.classList.toggle('is-on', on);
+      e.currentTarget.setAttribute('aria-pressed', String(on));
+      e.currentTarget.textContent = on ? 'buzz on' : 'buzz off';
+    },
+  }, haptics.isEnabled() ? 'buzz on' : 'buzz off') : null;
+
   return h('div', { class: 'fb-page' },
     stage,
     h('div', { class: 'fb-side' },
       h('div', { class: 'fb-head' }, nameEl, statEl),
       pipsEl,
       strip,
+      buzzBtn,
     ),
   );
 }

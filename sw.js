@@ -1,5 +1,5 @@
 // Cache-first service worker so the app works on a phone with no signal.
-const CACHE = 'chordgrip-v1';
+const CACHE = 'chordgrip-v2';
 const ASSETS = [
   './',
   './index.html',
@@ -17,6 +17,7 @@ const ASSETS = [
   './js/audio.js',
   './js/notes.js',
   './js/fretboard.js',
+  './js/haptics.js',
   './js/store.js',
 ];
 
