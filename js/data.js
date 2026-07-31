@@ -351,8 +351,13 @@ export const PROGRESSIONS = [
 // chain changes together, not to memorise an arrangement.
 export const SONGS = [
   {
+    id: 'horse', name: 'A Horse with No Name', chords: ['Em', 'D', 'Em', 'D'],
+    note: 'Two chords, and the pair most often named the easiest song on the guitar. '
+      + 'The record uses a D6add9; plain D is the standard beginner stand-in.',
+  },
+  {
     id: 'warmup', name: 'Warm-up', chords: ['Em', 'A', 'Em', 'D'],
-    note: 'Two of the easiest shapes, and back again.',
+    note: 'Not a song — three easy shapes in a loop, to get the hand moving.',
   },
   {
     id: 'grace', name: 'Amazing Grace', chords: ['G', 'G7', 'C', 'G', 'D', 'G'],
@@ -363,16 +368,16 @@ export const SONGS = [
     note: 'The whole verse is these six.',
   },
   {
-    id: 'letitbe', name: 'Let It Be', chords: ['C', 'G', 'Am', 'Fmini'],
-    note: 'I–V–vi–IV in C, with the easy F.',
+    id: 'letitbe', name: 'Let It Be', chords: ['C', 'G', 'Am', 'Fmini', 'C', 'G', 'Fmini', 'C'],
+    note: 'The whole verse: C G | Am F | C G | F C, with the easy F.',
   },
   {
-    id: 'rising', name: 'Rising Sun', chords: ['Am', 'C', 'D', 'Fmini', 'Am', 'C', 'E7'],
-    note: 'Traditional, and a good minor-key workout.',
+    id: 'rising', name: 'Rising Sun', chords: ['Am', 'C', 'D', 'Fmini', 'Am', 'C', 'E'],
+    note: 'A minor key that borrows a major D and E — that is what gives it the sound.',
   },
   {
-    id: 'blues', name: '12-bar blues', chords: ['A7', 'D7', 'A7', 'E7', 'D7', 'A7'],
-    note: 'The 12 bars condensed to their six changes.',
+    id: 'blues', name: '12-bar blues', chords: ['A7', 'D7', 'A7', 'E7', 'D7', 'A7', 'E7'],
+    note: 'The 12 bars as their seven changes, ending on the turnaround back to A7.',
   },
   {
     id: 'britpop', name: 'Britpop loop', chords: ['Em', 'G', 'Dsus4', 'Cadd9'],
