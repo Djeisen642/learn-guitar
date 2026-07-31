@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Fretwise">
+  <rect width="512" height="512" fill="#12100e"/>
+  <g stroke="#4a423b" stroke-width="7">
+    <path d="M176 168V344M208 168V344M240 168V344M272 168V344M304 168V344M336 168V344"/>
+    <path d="M176 226H336M176 286H336"/>
+  </g>
+  <rect x="171" y="163" width="170" height="13" rx="5" fill="#f2ede7"/>
+  <g fill="#e0912f">
+    <circle cx="208" cy="197" r="19"/>
+    <circle cx="240" cy="256" r="19"/>
+    <circle cx="304" cy="197" r="19"/>
+  </g>
+</svg>

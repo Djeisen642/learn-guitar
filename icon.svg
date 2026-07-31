@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Fretwise">
+  <rect width="512" height="512" rx="112" fill="#12100e"/>
+  <g stroke="#4a423b" stroke-width="6">
+    <path d="M136 128V400M184 128V400M232 128V400M280 128V400M328 128V400M376 128V400"/>
+  </g>
+  <g stroke="#4a423b" stroke-width="6">
+    <path d="M136 200H376M136 272H376M136 344H376"/>
+  </g>
+  <rect x="130" y="122" width="252" height="16" rx="6" fill="#f2ede7"/>
+  <g fill="#e0912f">
+    <circle cx="184" cy="236" r="26"/>
+    <circle cx="232" cy="308" r="26"/>
+    <circle cx="328" cy="236" r="26"/>
+  </g>
+</svg>

@@ -1,0 +1,15 @@
+{
+  "name": "Fretwise — learn guitar chords",
+  "short_name": "Fretwise",
+  "description": "A mobile-first guitar chord trainer: diagrams you can hear, a staged learning path, and the one-minute-changes drill.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#12100e",
+  "theme_color": "#12100e",
+  "icons": [
+    { "src": "./icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "./icon-maskable.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}
