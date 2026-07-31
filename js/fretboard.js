@@ -5,7 +5,7 @@
 // sound once every finger is actually on its spot. Put the phone down, pick up
 // a guitar, and your hand has already made the shape.
 //
-// Geometry is computed in millimetres and converted to pixels ourselves. CSS
+// Geometry is computed in millimeters and converted to pixels ourselves. CSS
 // physical units are fiction on a phone (1mm is always 3.78px regardless of the
 // real display), so declaring `43mm` would produce a neck two thirds of life size.
 
@@ -15,11 +15,11 @@ import * as haptics from './haptics.js';
 import * as store from './store.js';
 
 const SCALE_MM = 647.7;   // 25.5" scale length, the Fender/Martin standard
-const STRING_MM = 7.3;    // string centres at the nut
+const STRING_MM = 7.3;    // string centers at the nut
 const EDGE_MM = 3.6;      // fretboard beyond the outer strings
 const FRETS = 3;          // every open chord lives inside frets 1-3
 
-// Phones cluster tightly around 6 CSS px per physical millimetre: an iPhone 12
+// Phones cluster tightly around 6 CSS px per physical millimeter: an iPhone 12
 // is 6.04, a Pixel 7 6.24, a Galaxy S23 5.58. There's no API for real DPI, so
 // this is the honest average.
 const PX_PER_MM = 6.05;
@@ -32,7 +32,7 @@ const SIDE_MIN_PX = 62;   // narrowest the column beside the neck may get
 // glass you have to reach across before the first string. The board is run off
 // the right edge instead and the surplus clipped, putting the outer string
 // almost against the rim — where a finger curling over the edge actually lands.
-// Physical millimetres, against the unscaled constant, since the phone's rim
+// Physical millimeters, against the unscaled constant, since the phone's rim
 // doesn't shrink when the board does.
 const STRING_EDGE_MM = 1.5;
 const LAYOUT_GAP_PX = 12;   // page padding plus the gap to the side column
@@ -46,11 +46,11 @@ const HOLD_MS = 260;      // shape must be held, not just brushed
 //
 // Horizontally it is the string lane, because pressing the wrong string is a
 // wrong note. That caps the width at the 7.3mm string spacing wherever a chord
-// puts fingers on neighbouring strings, which is under the ~10mm that touch
+// puts fingers on neighboring strings, which is under the ~10mm that touch
 // research treats as the floor for reliable hits (fingertip contact is 8-14mm).
 // That gap is exactly why three-in-a-fret feels cramped on glass, and it isn't
 // something the app can design away without lying about the instrument. Where
-// no neighbouring finger is in the way, the lane widens toward that 10mm.
+// no neighboring finger is in the way, the lane widens toward that 10mm.
 const LANE_MAX_MM = 10;
 const WIRE_INSET_MM = 1;  // keep the fret wires readable as edges
 const EDGE_FORGIVE_MM = 1.5;
@@ -98,7 +98,7 @@ function targetsFor(chord, join = true) {
 }
 
 /**
- * Let one flattened finger cover two neighbouring strings — but only where a
+ * Let one flattened finger cover two neighboring strings — but only where a
  * real player would, which is rarer than it looks.
  *
  * Two dots side by side in the same fret is not on its own a reason to merge
@@ -222,7 +222,7 @@ export function FretboardView(onLeave) {
   /**
    * The largest rectangle that is still a correct answer: the full fret cell
    * tall, and as wide as the string lane can grow before it would reach a
-   * neighbouring finger in the same fret.
+   * neighboring finger in the same fret.
    */
   function rectFor(t) {
     const half = (STRING_MM / 2) * ppm;
@@ -419,7 +419,7 @@ export function FretboardView(onLeave) {
   }
 
   /**
-   * Distance from a touch to a target's centre, or null if the touch is outside
+   * Distance from a touch to a target's center, or null if the touch is outside
    * the drawn rectangle. Hit area and drawing come from the same rect, so
    * nothing is secretly bigger or smaller than it looks.
    */
@@ -672,8 +672,8 @@ export function FretboardView(onLeave) {
     joinBtn.classList.toggle('is-on', !solo);
     joinBtn.setAttribute('aria-pressed', String(!solo));
     joinBtn.title = solo
-      ? 'One finger per string, exactly as the chord is written. Tap to let neighbouring strings share a finger.'
-      : 'Neighbouring strings at the same fret share one flattened finger. Tap for one finger per string.';
+      ? 'One finger per string, exactly as the chord is written. Tap to let neighboring strings share a finger.'
+      : 'Neighboring strings at the same fret share one flattened finger. Tap for one finger per string.';
   }
   joinBtn.addEventListener('click', () => {
     store.setFlag('soloFingers', !store.getFlag('soloFingers'));

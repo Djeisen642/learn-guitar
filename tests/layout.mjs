@@ -1,4 +1,4 @@
-// Layout and behaviour checks across real phone sizes.
+// Layout and behavior checks across real phone sizes.
 //
 // Every assertion here exists because something actually broke:
 //  - the chord sheet kept an invisible tap-blocking overlay after closing
