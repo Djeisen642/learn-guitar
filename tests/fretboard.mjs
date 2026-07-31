@@ -6,7 +6,7 @@
 //     ~7mm apart with a ~5mm touch tolerance, so one broad touch overlaps two of
 //     them; without one-to-one matching a sloppy shape would pass.
 
-import { SONGS, CHORD_BY_ID } from '../js/data.js';
+import { SONGS, CHORD_BY_ID, strumSchedule } from '../js/data.js';
 
 const PX_PER_MM = 6.05;             // must match js/fretboard.js
 const SCALE_MM = 647.7;
@@ -26,8 +26,56 @@ export async function run(browser, base, log) {
     if (missing.length) fail(`song "${s.name}" uses unknown chords: ${missing.join(', ')}`);
     else if (deep.length) fail(`song "${s.name}" needs frets past 3: ${deep.join(', ')}`);
     else if (s.chords.length < 3) fail(`song "${s.name}" is only ${s.chords.length} chords`);
+
+    // Timing has to line up with the chords or the playback drifts, and the
+    // beats have to add up to whole bars or the sequence isn't the tune.
+    if (!s.beats || s.beats.length !== s.chords.length) {
+      fail(`song "${s.name}" has ${s.beats?.length ?? 0} beat counts for ${s.chords.length} chords`);
+    } else if (s.beats.some((b) => !(b > 0))) {
+      fail(`song "${s.name}" has a non-positive beat count`);
+    } else {
+      const total = s.beats.reduce((a, b) => a + b, 0);
+      if (total % s.meter !== 0) {
+        fail(`song "${s.name}" is ${total} beats, not a whole number of ${s.meter}-beat bars`);
+      }
+    }
   }
-  pass(`all ${SONGS.length} songs use known chords inside the first three frets`);
+  const bars = SONGS.map((s) => `${s.name.split(' ')[0]} ${s.beats.reduce((a, b) => a + b, 0) / s.meter}`);
+  pass(`all ${SONGS.length} songs fit the first three frets and fill whole bars (${bars.join(', ')})`);
+
+  // --- automatic strumming -------------------------------------------------
+  // Checked as a pure schedule rather than by listening: real-time playback of
+  // a 29-second blues is a slow and flaky way to assert arithmetic.
+  for (const s of SONGS) {
+    const sched = strumSchedule(s);
+    const total = s.beats.reduce((a, b) => a + b, 0);
+    if (!sched.length) { fail(`song "${s.name}" produces no strums`); continue; }
+    if (sched.some((x) => x.beat >= total || x.beat < 0)) fail(`song "${s.name}" strums outside its own length`);
+    if (sched.some((x, i) => i && x.beat <= sched[i - 1].beat)) fail(`song "${s.name}" strums out of order`);
+    if (!sched.some((x) => x.direction === 'up') && s.meter !== 3) {
+      fail(`song "${s.name}" never strums upward`);
+    }
+    // Every strum must sound the chord that is actually current at that beat.
+    let at = 0;
+    const spans = s.chords.map((id, i) => { const from = at; at += s.beats[i]; return { from, to: at, id }; });
+    const wrong = sched.filter((x) => {
+      const span = spans.find((sp) => x.beat >= sp.from && x.beat < sp.to);
+      return !span || span.id !== x.chord;
+    });
+    if (wrong.length) fail(`song "${s.name}" has ${wrong.length} strums on the wrong chord`);
+  }
+
+  // A chord starting halfway through a bar must pick up that bar's remaining
+  // strums, not restart the pattern — otherwise the groove resets on every
+  // mid-bar change, which is most of Heaven's Door and all of Let It Be.
+  {
+    const heaven = SONGS.find((s) => s.id === 'heaven');
+    const firstBar = strumSchedule(heaven).filter((x) => x.beat < heaven.meter);
+    const shape = firstBar.map((x) => `${x.beat}${x.chord}`).join(' ');
+    if (shape !== '0G 1G 1.5G 2.5D 3D 3.5D') fail(`mid-bar chord change resets the strum pattern: ${shape}`);
+    else pass(`strum pattern runs across mid-bar chord changes (${shape})`);
+  }
+  pass(`${SONGS.map((s) => strumSchedule(s).length).reduce((a, b) => a + b, 0)} strums scheduled across ${SONGS.length} songs`);
 
   // --- geometry ------------------------------------------------------------
   for (const [name, w, h] of [['Galaxy S23', 360, 780], ['iPhone 12', 390, 844], ['Pixel 7', 412, 915]]) {
@@ -232,6 +280,23 @@ export async function run(browser, base, log) {
     else if (!/all \d+/.test(stat)) fail(`finishing a song shows "${stat}", not a completion`);
     else pass(`song advances ${seen.join(' → ')} and reports "${stat}"`);
     // The loop above already lifted off; no reset needed here.
+
+    // Playing a song back must use its own timing, not one chord per tick.
+    await page.locator('.fb-pick.is-song', { hasText: 'Heaven' }).first().click();
+    await page.waitForTimeout(300);
+    await page.evaluate(() => { window.__t = []; const s = AudioBufferSourceNode.prototype.start;
+      AudioBufferSourceNode.prototype.start = function (...a) { window.__t.push(Date.now()); return s.apply(this, a); }; });
+    await page.locator('.fb-hear').click();
+    await page.waitForTimeout(2600);
+    const gaps = await page.evaluate(() => {
+      // one strum is six plucks; collapse to chord onsets
+      const onsets = window.__t.filter((t, i, a) => i === 0 || t - a[i - 1] > 150);
+      return onsets.slice(1).map((t, i) => t - onsets[i]);
+    });
+    // Heaven's Door at 72bpm strums on beats 0, 1, 1.5 and 2.5 — four inside
+    // the first 2.6 seconds. One-per-chord playback would manage two.
+    if (gaps.length + 1 < 4) fail(`playback made ${gaps.length + 1} strums in 2.6s — not strumming, just changing chords`);
+    else pass(`playback strums within the bar (${gaps.length + 1} strums in 2.6s)`);
 
     // Synthesis buffers are cached per pitch; without that a strum rebuilds
     // ~500KB per string on the main thread.

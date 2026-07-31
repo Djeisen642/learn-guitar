@@ -516,9 +516,16 @@ body.play-mode .topbar { display: none; }
 .fb-next {
   flex: none; font-size: 11.5px; font-weight: 600; color: var(--text-dim);
 }
+.fb-hear {
+  flex: none; width: 100%; min-height: 40px;
+  appearance: none; font: inherit; font-size: 11.5px; font-weight: 650; cursor: pointer;
+  padding: 6px; border-radius: 8px;
+  background: transparent; border: 1px solid var(--line); color: var(--text-dim);
+}
+.fb-hear.is-playing { color: var(--accent); border-color: var(--accent); }
 .fb-progress { flex: none; display: flex; gap: 3px; flex-wrap: wrap; }
 .fb-progress i {
-  width: 100%; max-width: 14px; height: 4px; border-radius: 99px;
+  height: 4px; border-radius: 99px; min-width: 3px;
   background: var(--line); flex: 1;
 }
 .fb-progress i.is-done { background: var(--good); }

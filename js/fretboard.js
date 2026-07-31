@@ -9,7 +9,7 @@
 // physical units are fiction on a phone (1mm is always 3.78px regardless of the
 // real display), so declaring `43mm` would produce a neck two thirds of life size.
 
-import { CHORD_BY_ID, SONGS } from './data.js';
+import { CHORD_BY_ID, SONGS, strumSchedule } from './data.js';
 import { strum, unlockAudio } from './audio.js';
 import * as haptics from './haptics.js';
 import * as store from './store.js';
@@ -115,6 +115,8 @@ export function FretboardView(onLeave) {
   const pipsEl = h('div', { class: 'fb-pips' });
   const nextEl = h('div', { class: 'fb-next', hidden: true });
   const progressEl = h('div', { class: 'fb-progress', hidden: true });
+  const hearBtn = h('button', { class: 'fb-hear', type: 'button', hidden: true }, '▶ hear it');
+  hearBtn.addEventListener('click', playSong);
 
   // --- scale to the phone in hand -----------------------------------------
   let ppm = PX_PER_MM;
@@ -259,6 +261,30 @@ export function FretboardView(onLeave) {
     updateHeld([...active.values()]);
   }
 
+  // Hearing it is the point of the timing data: the chords alone are the right
+  // sequence, but only the bar lengths make it the tune.
+  let playTimers = [];
+  function stopPlayback() {
+    playTimers.forEach(clearTimeout);
+    playTimers = [];
+    hearBtn?.classList.remove('is-playing');
+  }
+  function playSong() {
+    stopPlayback();
+    if (!song) return;
+    unlockAudio();
+    hearBtn.classList.add('is-playing');
+    const secondsPerBeat = 60 / (song.bpm || 90);
+    const schedule = strumSchedule(song);
+    for (const s of schedule) {
+      const c = CHORD_BY_ID[s.chord];
+      playTimers.push(setTimeout(() => strum(c, s.direction), s.beat * secondsPerBeat * 1000));
+    }
+    const total = song.beats.reduce((a, b) => a + b, 0);
+    playTimers.push(setTimeout(stopPlayback, total * secondsPerBeat * 1000));
+  }
+  onLeave(stopPlayback);
+
   function paintStat() {
     const scale = Math.round((ppm / PX_PER_MM) * 100);
     const size = scale >= 99 ? 'life size' : `${scale}% size`;
@@ -273,9 +299,14 @@ export function FretboardView(onLeave) {
       const next = song.chords[(step + 1) % song.chords.length];
       nextEl.textContent = `next ${CHORD_BY_ID[next]?.name || next}`;
       nextEl.hidden = false;
+      hearBtn.hidden = false;
+      // Segments are sized by how long each chord lasts, so the bar doubles as
+      // a picture of the rhythm rather than implying every change is equal.
       progressEl.textContent = '';
-      song.chords.forEach((_, i) => progressEl.appendChild(
-        h('i', { class: i < step ? 'is-done' : i === step ? 'is-now' : '' })));
+      song.chords.forEach((_, i) => progressEl.appendChild(h('i', {
+        class: i < step ? 'is-done' : i === step ? 'is-now' : '',
+        style: `flex:${song.beats?.[i] || 1}`,
+      })));
       progressEl.hidden = false;
       return;
     }
@@ -285,6 +316,8 @@ export function FretboardView(onLeave) {
     statEl.textContent = best ? `${size} · ${(best / 1000).toFixed(1)}s best` : size;
     nextEl.hidden = true;
     progressEl.hidden = true;
+    hearBtn.hidden = true;
+    stopPlayback();
   }
 
   // --- touch ---------------------------------------------------------------
@@ -418,6 +451,7 @@ export function FretboardView(onLeave) {
   const strip = h('div', { class: 'fb-strip' });
 
   function selectSong(s) {
+    stopPlayback();
     song = s;
     step = 0;
     cleared = false;
@@ -429,6 +463,7 @@ export function FretboardView(onLeave) {
   }
 
   function selectChord(id) {
+    stopPlayback();
     song = null;
     cleared = false;
     chordId = id;
@@ -528,6 +563,7 @@ export function FretboardView(onLeave) {
       progressEl,
       pipsEl,
       nextEl,
+      hearBtn,
       strip,
       buzzBtn,
     ),

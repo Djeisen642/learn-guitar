@@ -345,40 +345,102 @@ export const PROGRESSIONS = [
   },
 ];
 
-// Short chord sequences to play through on the fretboard. Every chord is an
+// Short chord sequences to play through on the fretboard.
+//
+// `beats` gives each step's length in the song's own beat, and `meter` how many
+// of those make a bar — so Heaven's Door's G and D are two beats of a shared
+// 4/4 bar, while Amazing Grace's G runs three bars of 3/4. Without this a
+// correct sequence of chords still doesn't sound like the tune, because every
+// change lands in the wrong place. `bpm` counts the same beat. Every chord is an
 // open shape inside the first three frets, so the whole song fits on the neck
 // without moving position. Kept to a handful of steps each — the point is to
 // chain changes together, not to memorise an arrangement.
 export const SONGS = [
   {
+    id: 'horse', name: 'A Horse with No Name', chords: ['Em', 'D', 'Em', 'D'],
+    meter: 4, bpm: 120, beats: [4, 4, 4, 4],
+    note: 'Two chords, and the pair most often named the easiest song on the guitar. '
+      + 'The record uses a D6add9; plain D is the standard beginner stand-in.',
+  },
+  {
     id: 'warmup', name: 'Warm-up', chords: ['Em', 'A', 'Em', 'D'],
-    note: 'Two of the easiest shapes, and back again.',
+    meter: 4, bpm: 100, beats: [4, 4, 4, 4],
+    note: 'Not a song — three easy shapes in a loop, to get the hand moving.',
   },
   {
     id: 'grace', name: 'Amazing Grace', chords: ['G', 'G7', 'C', 'G', 'D', 'G'],
-    note: 'Traditional. The G7 is what pulls the ear across to the C.',
+    meter: 3, bpm: 92, beats: [3, 3, 3, 9, 6, 6],
+    note: 'Traditional, 3/4. G–C–G–D is the skeleton every arrangement shares; '
+      + 'the G7 is an optional passing chord that pulls the ear across to the C.',
   },
   {
     id: 'heaven', name: "Heaven's Door", chords: ['G', 'D', 'Am', 'G', 'D', 'C'],
+    meter: 4, bpm: 72, beats: [2, 2, 4, 2, 2, 4],
     note: 'The whole verse is these six.',
   },
   {
-    id: 'letitbe', name: 'Let It Be', chords: ['C', 'G', 'Am', 'Fmini'],
-    note: 'I–V–vi–IV in C, with the easy F.',
+    id: 'letitbe', name: 'Let It Be', chords: ['C', 'G', 'Am', 'Fmini', 'C', 'G', 'Fmini', 'C'],
+    meter: 4, bpm: 72, beats: [2, 2, 2, 2, 2, 2, 2, 2],
+    note: 'The whole verse: C G | Am F | C G | F C, with the easy F.',
   },
   {
-    id: 'rising', name: 'Rising Sun', chords: ['Am', 'C', 'D', 'Fmini', 'Am', 'C', 'E7'],
-    note: 'Traditional, and a good minor-key workout.',
+    id: 'rising', name: 'Rising Sun', chords: ['Am', 'C', 'D', 'Fmini', 'Am', 'C', 'E'],
+    meter: 6, bpm: 156, beats: [6, 6, 6, 6, 6, 6, 12],
+    note: 'A minor key that borrows a major D and E — that is what gives it the sound.',
   },
   {
-    id: 'blues', name: '12-bar blues', chords: ['A7', 'D7', 'A7', 'E7', 'D7', 'A7'],
-    note: 'The 12 bars condensed to their six changes.',
+    id: 'blues', name: '12-bar blues', chords: ['A7', 'D7', 'A7', 'E7', 'D7', 'A7', 'E7'],
+    meter: 4, bpm: 100, beats: [16, 8, 8, 4, 4, 4, 4],
+    note: 'The 12 bars as their seven changes, ending on the turnaround back to A7.',
   },
   {
     id: 'britpop', name: 'Britpop loop', chords: ['Em', 'G', 'Dsus4', 'Cadd9'],
+    meter: 4, bpm: 87, beats: [4, 4, 4, 4],
     note: 'Keep fingers 3 and 4 down throughout.',
   },
 ];
+
+// Strumming patterns for automatic playback, as [beat offset within the bar,
+// direction]. A 4/4 pattern doesn't fit a waltz or a 6/8, so there's one per
+// meter rather than one for everything.
+const STRUM_BY_METER = {
+  // The one everyone uses: D - D U - U D U across the eight eighths.
+  4: [[0, 'down'], [1, 'down'], [1.5, 'up'], [2.5, 'up'], [3, 'down'], [3.5, 'up']],
+  // Waltz: one strum per beat, so 3/4 keeps its lilt.
+  3: [[0, 'down'], [1, 'down'], [2, 'down']],
+  // 6/8 rolls in two groups of three.
+  6: [[0, 'down'], [1, 'up'], [2, 'up'], [3, 'down'], [4, 'up'], [5, 'up']],
+};
+
+/**
+ * Expand a song into the strums that actually play it: walks the whole thing in
+ * beats and lays the meter's pattern over the top, so a chord starting halfway
+ * through a bar picks up that bar's remaining strums rather than restarting the
+ * pattern. Pure, so the timing can be checked without listening to it.
+ */
+export function strumSchedule(song) {
+  const pattern = STRUM_BY_METER[song.meter] || STRUM_BY_METER[4];
+  const total = song.beats.reduce((a, b) => a + b, 0);
+
+  // Which chord is sounding at a given beat.
+  const spans = [];
+  let at = 0;
+  song.chords.forEach((id, i) => {
+    spans.push({ from: at, to: at + song.beats[i], id });
+    at += song.beats[i];
+  });
+
+  const out = [];
+  for (let bar = 0; bar * song.meter < total; bar++) {
+    for (const [offset, direction] of pattern) {
+      const beat = bar * song.meter + offset;
+      if (beat >= total) break;
+      const span = spans.find((s) => beat >= s.from && beat < s.to);
+      if (span) out.push({ beat, chord: span.id, direction });
+    }
+  }
+  return out;
+}
 
 // Strumming patterns, written as down/up over one bar of 4/4.
 export const STRUMS = [
