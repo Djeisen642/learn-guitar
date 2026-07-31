@@ -1,7 +1,7 @@
 // Tiny Web Audio engine: plucked-string synthesis (Karplus-Strong) for chords,
 // plus a metronome click. No samples, so nothing to download.
 
-const OPEN_MIDI = [40, 45, 50, 55, 59, 64]; // E2 A2 D3 G3 B3 E4
+import { OPEN_MIDI, midiToFreq, stringMidi } from './notes.js';
 
 let ctx = null;
 
@@ -19,8 +19,6 @@ export function unlockAudio() {
   const c = audio();
   if (c && c.state === 'suspended') c.resume();
 }
-
-const midiToFreq = (m) => 440 * Math.pow(2, (m - 69) / 12);
 
 /** One plucked string, built from filtered noise fed through a delay line. */
 function pluck(c, freq, when, gain = 0.6) {
@@ -82,6 +80,16 @@ export function arpeggiate(chord) {
     pluck(c, midiToFreq(OPEN_MIDI[s] + fret), t0 + i * 0.42, 0.55);
     i++;
   });
+}
+
+/** Sound a single string of a chord. Returns false if that string is muted. */
+export function pluckString(chord, s, gain = 0.55) {
+  const midi = stringMidi(chord, s);
+  if (midi == null) return false;
+  const c = audio();
+  if (!c) return false;
+  pluck(c, midiToFreq(midi), c.currentTime + 0.01, gain);
+  return true;
 }
 
 export function click(accent = false, when = null) {

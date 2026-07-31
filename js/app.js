@@ -2,6 +2,7 @@ import { CHORDS, CHORD_BY_ID, STAGES, PROGRESSIONS, STRUMS } from './data.js';
 import { chordDiagram } from './diagram.js';
 import { strum, arpeggiate, click, unlockAudio, now } from './audio.js';
 import * as store from './store.js';
+import { PlayView } from './play.js';
 
 const view = document.getElementById('view');
 const sheet = document.getElementById('sheet');
@@ -667,6 +668,7 @@ function render() {
   switch (parts[0]) {
     case 'chords': node = ChordsView(); break;
     case 'songs': node = SongsView(); break;
+    case 'play': node = PlayView(onLeave); break;
     case 'practice':
       if (parts[1] === 'omc') node = OmcView(parts[2], parts[3]);
       else if (parts[1] === 'drill') {
@@ -682,7 +684,7 @@ function render() {
   window.scrollTo(0, 0);
 
   const tab = parts[0] === 'practice' ? 'practice'
-    : ['chords', 'songs'].includes(parts[0]) ? parts[0] : 'learn';
+    : ['chords', 'songs', 'play'].includes(parts[0]) ? parts[0] : 'learn';
   document.querySelectorAll('.tabbar a').forEach((a) => {
     a.classList.toggle('is-on', a.dataset.tab === tab);
     if (a.dataset.tab === tab) a.setAttribute('aria-current', 'page');

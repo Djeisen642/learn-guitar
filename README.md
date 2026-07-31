@@ -11,6 +11,9 @@ dependencies, no accounts — just static files served by GitHub Pages.
   stages before it. Mark chords as learned; progress is saved on the device.
 - **Chords** — all 35 shapes, with search and filters. Every chord opens a sheet
   with an SVG diagram, a per-string breakdown, a technique tip, and playback.
+- **Play** — the phone becomes the strings. Pick a chord from the buttons, then drag
+  a thumb across six touch lanes to strum, or tap one lane for a single note. Each
+  lane shows the fret and finger your other hand would use, plus the note it sounds.
 - **Practice**
   - *One-minute changes* — the JustinGuitar drill: pick two chords, swap for 60
     seconds, tap on each clean change. Personal bests are stored per chord pair.
@@ -44,7 +47,9 @@ index.html      app shell: header, view container, bottom tab bar, chord sheet
 styles.css      all styling; dark and light themes, safe-area aware
 js/data.js      chord shapes, curriculum stages, progressions, strum patterns
 js/diagram.js   renders a chord as an inline SVG diagram
+js/notes.js     tuning, note names, fret -> pitch maths
 js/audio.js     Karplus–Strong pluck synthesis and the metronome click
+js/play.js      the touch-strummable on-screen strings
 js/store.js     localStorage progress: learned chords, best scores, day streak
 js/app.js       hash router and all views
 sw.js           cache-first service worker for offline use

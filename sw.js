@@ -1,5 +1,5 @@
 // Cache-first service worker so the app works on a phone with no signal.
-const CACHE = 'fretwise-v1';
+const CACHE = 'fretwise-v2';
 const ASSETS = [
   './',
   './index.html',
@@ -11,6 +11,8 @@ const ASSETS = [
   './js/data.js',
   './js/diagram.js',
   './js/audio.js',
+  './js/notes.js',
+  './js/play.js',
   './js/store.js',
 ];
 
