@@ -3,6 +3,7 @@ import { chordDiagram } from './diagram.js';
 import { strum, arpeggiate, click, unlockAudio, now } from './audio.js';
 import * as store from './store.js';
 import { FretboardView } from './fretboard.js';
+import * as haptics from './haptics.js';
 
 const view = document.getElementById('view');
 const sheet = document.getElementById('sheet');
@@ -327,6 +328,7 @@ function OmcView(a, b) {
       store.touchStreak();
       paintStreak();
       tapBtn.textContent = isBest ? 'New best!' : 'Time!';
+      haptics.finished();
       bestEl.textContent = isBest
         ? `New best: ${count} changes/min`
         : `${count} this round · best ${store.bestChanges(chordA, chordB)}`;
@@ -370,6 +372,7 @@ function OmcView(a, b) {
     if (!running) return start();
     count += 1;
     countEl.textContent = String(count);
+    haptics.count();
     tapBtn.classList.add('is-hit');
     setTimeout(() => tapBtn.classList.remove('is-hit'), 90);
   };

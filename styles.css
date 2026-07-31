@@ -449,22 +449,33 @@ body.play-mode .topbar { display: none; }
 }
 .fb-mark.is-open { color: var(--text); }
 
-/* Where the fingers go. */
+/* Where the fingers go. The rectangle is the whole fret cell — on a real neck
+   the pitch is the same anywhere between two wires — and the shading leans
+   toward the fret, where the note actually rings cleanest. */
 .fb-target {
   position: absolute;
-  display: grid; place-items: center;
-  border-radius: 999px;
-  border: 2px dashed rgba(255, 255, 255, .55);
-  background: rgba(224, 145, 47, .22);
-  color: #fff; font-size: 15px; font-weight: 700;
-  transition: background .09s, border-color .09s, transform .09s;
+  border-radius: 7px;
+  border: 2px dashed rgba(255, 255, 255, .45);
+  background: linear-gradient(180deg, rgba(224, 145, 47, .10), rgba(224, 145, 47, .34));
+  color: #fff;
+  overflow: hidden;
+  transition: background .09s, border-color .09s;
 }
-.fb-target.is-bar { border-radius: 999px; }
+.fb-target-label {
+  position: absolute; left: 0; right: 0;
+  transform: translateY(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+  pointer-events: none;
+}
+.fb-target-num { font-size: 15px; font-weight: 700; line-height: 1; }
+.fb-target-name {
+  font-size: 9.5px; font-weight: 600; line-height: 1;
+  letter-spacing: .02em; opacity: .85; white-space: nowrap;
+}
 .fb-target.is-on {
   background: var(--accent);
   border: 2px solid #fff;
   color: #17130d;
-  transform: scale(1.04);
 }
 
 .fb.is-formed .fb-target { background: var(--good); border-color: #fff; color: #fff; }
@@ -493,6 +504,14 @@ body.play-mode .topbar { display: none; }
   background: var(--bg-raised); border: 1px solid var(--line); color: var(--text);
 }
 .fb-pick.is-on { background: var(--accent); border-color: var(--accent); color: #17130d; }
+
+.fb-buzz {
+  flex: none; width: 100%; min-height: 40px;
+  appearance: none; font: inherit; font-size: 11px; font-weight: 600; cursor: pointer;
+  padding: 6px; border-radius: 8px;
+  background: transparent; border: 1px solid var(--line); color: var(--text-dim);
+}
+.fb-buzz.is-on { color: var(--accent); border-color: var(--accent); }
 
 /* --- songs --------------------------------------------------------------- */
 

@@ -45,6 +45,47 @@ export async function run(browser, base, log) {
       else pass(`${name}: too small for a real neck, and says so ("${g.stat}")`);
     }
 
+    // Targets must name the finger, not just number it — "1" means nothing to
+    // someone who has never been told the numbering.
+    const labels = await page.evaluate(() => [...document.querySelectorAll('.fb-target')].map((t) => ({
+      num: t.querySelector('.fb-target-num')?.textContent,
+      name: t.querySelector('.fb-target-name')?.textContent,
+      w: Math.round(t.getBoundingClientRect().width),
+      h: Math.round(t.getBoundingClientRect().height),
+    })));
+    const named = ['index', 'middle', 'ring', 'pinky'];
+    for (const l of labels) {
+      if (!named.some((n) => l.name?.startsWith(n))) fail(`${name}: target ${l.num} labelled "${l.name}"`);
+      // A circle the size of a fingertip was too small to hit or to label.
+      if (l.w < 30 || l.h < 60) fail(`${name}: target ${l.num} only ${l.w}x${l.h}px`);
+    }
+    if (labels.length) pass(`${name}: targets name the finger`);
+
+    // A major puts three fingers on neighbouring strings at one fret. The middle
+    // one must stay inside its 7.3mm lane — widening it would start accepting
+    // the neighbouring string, which is a wrong note — while still standing the
+    // full height of the fret cell, where the pitch is identical anyway.
+    if (scale > 0.99) {
+      // A major is the case that matters: three fingers on neighbouring strings
+      // in one fret, so the middle one is hemmed in on both sides. A chord like
+      // Em only crowds one side, and there the lane is allowed to widen.
+      await page.locator('.fb-pick', { hasText: /^A$/ }).first().click();
+      await page.waitForTimeout(250);
+      const boxed = (await page.evaluate(() => [...document.querySelectorAll('.fb-target')].map((t) => ({
+        name: t.querySelector('.fb-target-name')?.textContent,
+        w: t.getBoundingClientRect().width,
+        h: t.getBoundingClientRect().height,
+      })))).find((l) => l.name === 'middle');
+      if (!boxed) fail(`${name}: no middle-finger target to measure`);
+      else {
+        const wide = boxed.w / PX_PER_MM;
+        const tall = boxed.h / PX_PER_MM;
+        if (wide > 7.6) fail(`${name}: boxed-in target ${wide.toFixed(1)}mm wide, past the 7.3mm string lane`);
+        else if (tall < 28) fail(`${name}: target ${tall.toFixed(1)}mm tall, fret cell is ~34mm`);
+        else pass(`${name}: boxed-in target ${wide.toFixed(1)}×${tall.toFixed(1)}mm — full cell, never past the lane`);
+      }
+    }
+
     // Every chord's targets must sit on the board.
     for (const id of ['C', 'G', 'A', 'Fmini']) {
       await page.locator('.fb-pick', { hasText: new RegExp(`^${id === 'Fmini' ? 'F' : id}$`) }).first().click();
@@ -103,6 +144,27 @@ export async function run(browser, base, log) {
       else pass(`${label} → ${shouldRing ? 'sounds' : 'silent'}, ${on} lit`);
       await reset();
     }
+
+    // Haptics: a pulse under ~10ms is too short for a phone's motor to spin up,
+    // so the old 6ms ticks were felt by nobody.
+    await page.evaluate(() => {
+      window.__buzz = [];
+      navigator.vibrate = (p) => { window.__buzz.push(p); return true; };
+    });
+    await touch('touchStart', spots.slice(0, 1));
+    await page.waitForTimeout(160);
+    const onLand = await page.evaluate(() => window.__buzz.slice());
+    if (!onLand.length) fail('no vibration when a finger lands on its target');
+    else if (onLand.some((p) => typeof p === 'number' && p < 10)) fail(`vibration pulse too short to feel: ${onLand.join(',')}ms`);
+    else pass(`finger landing buzzes (${onLand.join(', ')}ms)`);
+
+    await page.evaluate(() => { window.__buzz = []; });
+    await touch('touchStart', spots);
+    await page.waitForTimeout(520);
+    const onChord = await page.evaluate(() => window.__buzz.slice());
+    if (!onChord.some(Array.isArray)) fail('completing a chord gives no distinct buzz pattern');
+    else pass(`completed chord buzzes a pattern (${onChord.find(Array.isArray).join('-')}ms)`);
+    await reset();
 
     // Synthesis buffers are cached per pitch; without that a strum rebuilds
     // ~500KB per string on the main thread.

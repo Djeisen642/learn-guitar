@@ -11,6 +11,7 @@
 
 import { CHORD_BY_ID } from './data.js';
 import { strum, unlockAudio } from './audio.js';
+import * as haptics from './haptics.js';
 import * as store from './store.js';
 
 const SCALE_MM = 647.7;   // 25.5" scale length, the Fender/Martin standard
@@ -26,9 +27,25 @@ const PX_PER_MM = 6.05;
 const MARKER_PX = 30;     // gap above the nut for the o / x row; matches .fb margin-top
 const SIDE_MIN_PX = 92;   // narrowest the column beside the neck may get
 const HOLD_MS = 260;      // shape must be held, not just brushed
-const TOUCH_MM = 5.2;     // how close a fingertip must land
-const DOT_MM = 3.8;       // drawn fingertip radius — smaller than the tolerance
-                          // so neighbouring targets stay readable as separate spots
+
+// Targets are rectangles, sized to the largest area that is still honest.
+//
+// Vertically that is the whole fret cell: on a real guitar the pitch is
+// identical anywhere between two fret wires — only tone and buzz change — so
+// every part of the cell is a genuinely correct answer.
+//
+// Horizontally it is the string lane, because pressing the wrong string is a
+// wrong note. That caps the width at the 7.3mm string spacing wherever a chord
+// puts fingers on neighbouring strings, which is under the ~10mm that touch
+// research treats as the floor for reliable hits (fingertip contact is 8-14mm).
+// That gap is exactly why three-in-a-fret feels cramped on glass, and it isn't
+// something the app can design away without lying about the instrument. Where
+// no neighbouring finger is in the way, the lane widens toward that 10mm.
+const LANE_MAX_MM = 10;
+const WIRE_INSET_MM = 1;  // keep the fret wires readable as edges
+const EDGE_FORGIVE_MM = 1.5;
+
+const FINGER_NAMES = ['', 'index', 'middle', 'ring', 'pinky'];
 
 const fretMM = (n) => SCALE_MM - SCALE_MM / Math.pow(2, n / 12);
 
@@ -108,6 +125,38 @@ export function FretboardView(onLeave) {
 
   const stringX = (s) => (EDGE_MM + s * STRING_MM) * ppm;
 
+  /**
+   * The largest rectangle that is still a correct answer: the full fret cell
+   * tall, and as wide as the string lane can grow before it would reach a
+   * neighbouring finger in the same fret.
+   */
+  function rectFor(t) {
+    const half = (STRING_MM / 2) * ppm;
+    const inset = WIRE_INSET_MM * ppm;
+    const loX = stringX(Math.min(...t.strings));
+    const hiX = stringX(Math.max(...t.strings));
+
+    let x1 = loX - half;
+    let x2 = hiX + half;
+    const grow = ((LANE_MAX_MM - STRING_MM) / 2) * ppm;
+    let left = x1 - grow;
+    let right = x2 + grow;
+    for (const other of targets) {
+      // Only fingers sharing this fret compete: other frets are separate cells.
+      if (other === t || other.fret !== t.fret) continue;
+      const oLo = stringX(Math.min(...other.strings));
+      const oHi = stringX(Math.max(...other.strings));
+      if (oHi < loX) left = Math.max(left, (oHi + loX) / 2);
+      if (oLo > hiX) right = Math.min(right, (oLo + hiX) / 2);
+    }
+    x1 = Math.max(0, left);
+    x2 = Math.min(boardW, right);
+
+    const y1 = fretMM(t.fret - 1) * ppm + inset;
+    const y2 = fretMM(t.fret) * ppm - inset;
+    return { x1, x2, y1, y2, cx: (x1 + x2) / 2, cy: pressMM(t.fret) * ppm };
+  }
+
   // --- drawing -------------------------------------------------------------
   function paint() {
     measure();
@@ -153,15 +202,19 @@ export function FretboardView(onLeave) {
     });
 
     for (const t of targets) {
-      const lo = Math.min(...t.strings);
-      const hi = Math.max(...t.strings);
-      const y = pressMM(t.fret) * ppm;
-      const r = DOT_MM * ppm;
+      const r = rectFor(t);
+      // The whole cell counts, but the label sits at the sweet spot just behind
+      // the fret so the eye still learns where a note rings cleanest.
       const el = h('div', {
         class: 'fb-target' + (t.strings.length > 1 ? ' is-bar' : ''),
-        style: `top:${y}px; left:${stringX(lo)}px; width:${stringX(hi) - stringX(lo) + r * 2}px;`
-          + `height:${r * 2}px; margin-left:${-r}px; margin-top:${-r}px`,
-      }, t.finger ? String(t.finger) : '');
+        style: `left:${r.x1}px; top:${r.y1}px; width:${r.x2 - r.x1}px; height:${r.y2 - r.y1}px`,
+      },
+        h('span', { class: 'fb-target-label', style: `top:${r.cy - r.y1}px` },
+          h('span', { class: 'fb-target-num' }, t.finger ? String(t.finger) : '•'),
+          t.finger ? h('span', { class: 'fb-target-name' },
+            t.strings.length > 1 ? `${FINGER_NAMES[t.finger]} bar` : FINGER_NAMES[t.finger]) : null,
+        ),
+      );
       t.el = el;
       board.appendChild(el);
     }
@@ -200,15 +253,16 @@ export function FretboardView(onLeave) {
     return { x: e.clientX - r.left, y: e.clientY - r.top };
   }
 
-  /** Distance from a touch to a target, or null if it's out of tolerance. */
+  /**
+   * Distance from a touch to a target's centre, or null if the touch is outside
+   * the drawn rectangle. Hit area and drawing come from the same rect, so
+   * nothing is secretly bigger or smaller than it looks.
+   */
   function reach(t, p) {
-    const r = TOUCH_MM * ppm;
-    const lo = stringX(Math.min(...t.strings));
-    const hi = stringX(Math.max(...t.strings));
-    const y = pressMM(t.fret) * ppm;
-    const dx = p.x < lo ? lo - p.x : p.x > hi ? p.x - hi : 0;  // 0 anywhere along a barre
-    const d = Math.hypot(dx, p.y - y);
-    return d <= r ? d : null;
+    const r = rectFor(t);
+    const m = EDGE_FORGIVE_MM * ppm;
+    if (p.x < r.x1 - m || p.x > r.x2 + m || p.y < r.y1 - m || p.y > r.y2 + m) return null;
+    return Math.hypot(p.x - r.cx, p.y - r.cy);
   }
 
   /**
@@ -242,7 +296,7 @@ export function FretboardView(onLeave) {
         t.covered = on;
         t.el.classList.toggle('is-on', on);
         t.pip?.classList.toggle('is-on', on);
-        if (on && navigator.vibrate) navigator.vibrate(6);
+        if (on) haptics.tick();
       }
       if (!on) all = false;
     });
@@ -267,7 +321,7 @@ export function FretboardView(onLeave) {
     store.touchStreak();
     unlockAudio();
     strum(chord);                       // the shape is right, so it rings
-    if (navigator.vibrate) navigator.vibrate([12, 40, 12]);
+    haptics.chord();
     board.classList.add('is-win');
     setTimeout(() => board.classList.remove('is-win'), 600);
     statEl.textContent = isBest
@@ -340,12 +394,27 @@ export function FretboardView(onLeave) {
   // Neck runs the full height against one screen edge; everything else lives in
   // the column beside it. That reclaimed height is what buys true life size.
   // CSS puts the neck on the right (row-reverse) — see .fb-page.
+  // Only worth showing where vibration exists at all — Safari has no API for it.
+  const buzzBtn = haptics.isSupported() ? h('button', {
+    type: 'button',
+    class: 'fb-buzz' + (haptics.isEnabled() ? ' is-on' : ''),
+    'aria-pressed': String(haptics.isEnabled()),
+    onclick: (e) => {
+      const on = !haptics.isEnabled();
+      haptics.setEnabled(on);
+      e.currentTarget.classList.toggle('is-on', on);
+      e.currentTarget.setAttribute('aria-pressed', String(on));
+      e.currentTarget.textContent = on ? 'buzz on' : 'buzz off';
+    },
+  }, haptics.isEnabled() ? 'buzz on' : 'buzz off') : null;
+
   return h('div', { class: 'fb-page' },
     stage,
     h('div', { class: 'fb-side' },
       h('div', { class: 'fb-head' }, nameEl, statEl),
       pipsEl,
       strip,
+      buzzBtn,
     ),
   );
 }
