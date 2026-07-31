@@ -1,0 +1,145 @@
+// Tiny Web Audio engine: plucked-string synthesis (Karplus-Strong) for chords,
+// plus a metronome click. No samples, so nothing to download.
+
+import { OPEN_MIDI, midiToFreq, stringMidi } from './notes.js';
+
+const RING_SECONDS = 2.4;
+
+let ctx = null;
+let master = null;
+
+function audio() {
+  if (!ctx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    ctx = new AC();
+
+    // Strumming stacks six voices at once and re-strumming stacks more on top,
+    // so everything goes through a limiter to stop the phone speaker clipping.
+    const squash = ctx.createDynamicsCompressor();
+    squash.threshold.value = -12;
+    squash.knee.value = 12;
+    squash.ratio.value = 6;
+    squash.attack.value = 0.004;
+    squash.release.value = 0.18;
+
+    master = ctx.createGain();
+    master.gain.value = 0.9;
+    master.connect(squash).connect(ctx.destination);
+  }
+  if (ctx.state === 'suspended') ctx.resume();
+  return ctx;
+}
+
+export function unlockAudio() {
+  const c = audio();
+  if (c && c.state === 'suspended') c.resume();
+}
+
+// Building a Karplus-Strong buffer means filling ~100k samples, which is far too
+// much to redo for every pluck of a six-string strum on a phone. The waveform
+// only depends on the wavelength, so cache one buffer per pitch.
+const buffers = new Map();
+
+function buffer(c, freq) {
+  const N = Math.max(2, Math.round(c.sampleRate / freq));
+  const cached = buffers.get(N);
+  if (cached) return cached;
+
+  const buf = c.createBuffer(1, Math.ceil(c.sampleRate * RING_SECONDS), c.sampleRate);
+  const data = buf.getChannelData(0);
+
+  // Excitation: a short burst of noise, one wavelength long.
+  for (let i = 0; i < N; i++) data[i] = Math.random() * 2 - 1;
+
+  // Karplus-Strong: average each sample with its neighbour a wavelength back.
+  const decay = 0.996;
+  for (let i = N; i < data.length; i++) {
+    data[i] = decay * 0.5 * (data[i - N] + data[i - N + 1]);
+  }
+
+  if (buffers.size > 72) buffers.clear();
+  buffers.set(N, buf);
+  return buf;
+}
+
+/** One plucked string, built from filtered noise fed through a delay line. */
+function pluck(c, freq, when, gain = 0.6) {
+  const src = c.createBufferSource();
+  src.buffer = buffer(c, freq);
+
+  // Roll off the fizz so it sounds like wood rather than a modem.
+  const tone = c.createBiquadFilter();
+  tone.type = 'lowpass';
+  tone.frequency.value = 3200;
+
+  const amp = c.createGain();
+  amp.gain.setValueAtTime(0, when);
+  amp.gain.linearRampToValueAtTime(gain, when + 0.005);
+  amp.gain.exponentialRampToValueAtTime(0.0001, when + RING_SECONDS * 0.92);
+
+  src.connect(tone).connect(amp).connect(master);
+  src.start(when);
+  src.stop(when + RING_SECONDS);
+  // Let the graph be collected as soon as the note has finished.
+  src.onended = () => { src.disconnect(); tone.disconnect(); amp.disconnect(); };
+}
+
+/** Strum a chord entry from data.js. direction: 'down' | 'up'. */
+export function strum(chord, direction = 'down') {
+  const c = audio();
+  if (!c) return;
+  const t0 = c.currentTime + 0.02;
+  const notes = [];
+  chord.frets.forEach((fret, s) => {
+    if (fret < 0) return;
+    notes.push(midiToFreq(OPEN_MIDI[s] + fret));
+  });
+  if (direction === 'up') notes.reverse();
+  const spread = 0.028;
+  notes.forEach((f, i) => pluck(c, f, t0 + i * spread, 0.5 - i * 0.02));
+}
+
+/** Play the strings one at a time, slowly, so you can check each one rings. */
+export function arpeggiate(chord) {
+  const c = audio();
+  if (!c) return;
+  const t0 = c.currentTime + 0.02;
+  let i = 0;
+  chord.frets.forEach((fret, s) => {
+    if (fret < 0) return;
+    pluck(c, midiToFreq(OPEN_MIDI[s] + fret), t0 + i * 0.42, 0.55);
+    i++;
+  });
+}
+
+/** Sound a single string of a chord. Returns false if that string is muted. */
+export function pluckString(chord, s, gain = 0.55) {
+  const midi = stringMidi(chord, s);
+  if (midi == null) return false;
+  const c = audio();
+  if (!c) return false;
+  pluck(c, midiToFreq(midi), c.currentTime + 0.01, gain);
+  return true;
+}
+
+export function click(accent = false, when = null) {
+  const c = audio();
+  if (!c) return;
+  const t = when ?? c.currentTime;
+  const osc = c.createOscillator();
+  const amp = c.createGain();
+  osc.frequency.value = accent ? 1500 : 950;
+  amp.gain.setValueAtTime(0.0001, t);
+  amp.gain.exponentialRampToValueAtTime(accent ? 0.5 : 0.28, t + 0.001);
+  amp.gain.exponentialRampToValueAtTime(0.0001, t + 0.06);
+  osc.connect(amp).connect(master);
+  osc.start(t);
+  osc.stop(t + 0.08);
+  osc.onended = () => { osc.disconnect(); amp.disconnect(); };
+}
+
+export function now() {
+  const c = audio();
+  return c ? c.currentTime : 0;
+}
