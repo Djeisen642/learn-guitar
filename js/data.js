@@ -4,12 +4,19 @@
 //   frets:   -1 = muted, 0 = open, n = fret number relative to baseFret
 //   fingers:  0 = none/open, 1 = index ... 4 = pinky
 //   barres:  [{ fret, from, to }] where from/to are string indices (0 = low E)
+//   join:    [[s1, s2]] pairs of strings a documented easier fingering covers
+//            with one flattened finger. Play mode offers these, so the list is
+//            a claim about how the chord is really played — not a licence to
+//            merge any two neighbouring dots that happen to share a fret.
 
 export const CHORDS = [
   // --- open majors -------------------------------------------------------
   {
     id: 'A', name: 'A', full: 'A major', group: 'Major',
     frets: [-1, 0, 2, 2, 2, 0], fingers: [0, 0, 1, 2, 3, 0],
+    // The mini-barre A: index flat over D and G, middle on B. The standard
+    // answer to three fingers not fitting in one fret.
+    join: [[2, 3]],
     tip: 'Three fingers crammed into one fret. Keep them tucked right behind the 2nd fret wire and arch your knuckles so the high E rings.',
   },
   {
@@ -141,11 +148,13 @@ export const CHORDS = [
   {
     id: 'Asus2', name: 'Asus2', full: 'A suspended 2nd', group: 'Sus / add',
     frets: [-1, 0, 2, 2, 0, 0], fingers: [0, 0, 1, 2, 0, 0],
+    join: [[2, 3]],              // same mini-barre as A
     tip: 'A with the index lifted off the B string. Lift and drop it while strumming for instant texture.',
   },
   {
     id: 'Asus4', name: 'Asus4', full: 'A suspended 4th', group: 'Sus / add',
     frets: [-1, 0, 2, 2, 3, 0], fingers: [0, 0, 1, 2, 3, 0],
+    join: [[2, 3]],              // same mini-barre as A
     tip: 'Add the ring finger to A. Alternate A → Asus4 → A.',
   },
   {
@@ -188,6 +197,7 @@ export const CHORDS = [
   {
     id: 'A5', name: 'A5', full: 'A power chord', group: 'Power',
     frets: [-1, 0, 2, 2, -1, -1], fingers: [0, 0, 1, 3, 0, 0],
+    join: [[2, 3]],              // power chords are routinely one flat finger
     tip: 'Same shape as E5 shifted one string over.',
   },
   {

@@ -125,24 +125,29 @@ export async function run(browser, base, log) {
     }
     if (labels.length) pass(`${name}: targets name the finger`);
 
-    // Two neighbouring strings at one fret share a finger, since two fingertips
-    // at 7.3mm fight each other on glass. Never three under one finger, so A's
-    // run of three comes out as a pair plus a single — and specifically as the
-    // mini-barre people actually play: index across D and G, middle on B.
+    // A's three fingers in one fret become the mini-barre people actually play:
+    // index across D and G, middle on B.
     const shapeOf = async (pick) => {
       await page.locator('.fb-pick', { hasText: new RegExp(`^${pick}$`) }).first().click();
       await page.waitForTimeout(200);
       return page.evaluate(() => [...document.querySelectorAll('.fb-target')]
         .map((t) => t.querySelector('.fb-target-name').textContent));
     };
-    const em = await shapeOf('Em');
     const amaj = await shapeOf('A');
-    if (em.length !== 1 || !em[0].includes('×2')) fail(`${name}: Em should join into one target, got ${em.join(', ')}`);
-    else if (amaj.join(' + ') !== 'index ×2 + middle') fail(`${name}: A should be the mini-barre "index ×2 + middle", got ${amaj.join(' + ')}`);
-    else pass(`${name}: Em joins to "${em[0]}", A to "${amaj.join(' + ')}"`);
+    if (amaj.join(' + ') !== 'index ×2 + middle') fail(`${name}: A should be the mini-barre "index ×2 + middle", got ${amaj.join(' + ')}`);
+    else pass(`${name}: A joins to "${amaj.join(' + ')}"`);
 
-    // Joining is a choice: off, every string gets the finger the chord is
-    // written with, and A is three again.
+    // Everything else keeps the fingering it is taught with. Two dots side by
+    // side in one fret is not a reason to merge them: Em, E, Am and Dsus4 are
+    // all played with separate fingers, and merging them would drill a shape
+    // that doesn't exist on a real guitar.
+    for (const [id, want] of [['Em', 'middle + ring'], ['Am', 'middle + ring + index'], ['Dsus4', 'index + ring + pinky']]) {
+      const got = await shapeOf(id);
+      if (got.join(' + ') !== want) fail(`${name}: ${id} should stay "${want}", got ${got.join(' + ')}`);
+      else pass(`${name}: ${id} keeps its written fingering ("${want}")`);
+    }
+
+    // Joining is still a choice: off, A is three fingers again.
     const joinBtn = page.locator('.fb-join');
     await joinBtn.click();
     const solo = await shapeOf('A');

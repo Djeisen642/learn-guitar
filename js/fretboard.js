@@ -94,65 +94,55 @@ function targetsFor(chord, join = true) {
     groups.get(key).strings.push(s);
   });
   const targets = [...groups.values()];
-  return join ? joinPairs(targets) : targets;
+  return join ? joinPairs(targets, chord) : targets;
 }
 
 /**
- * Neighbouring strings stopped at the same fret share a finger: at 7.3mm
- * spacing two fingertips fight each other on glass, and flattening one finger
- * across two strings is a shape a hand can actually make.
+ * Let one flattened finger cover two neighbouring strings — but only where a
+ * real player would, which is rarer than it looks.
  *
- * How true that is to a real fingering varies by chord, which is why it's a
- * toggle rather than a rule. A is the mini-barre teachers actually reach for.
- * The easy F is already written with one, so it never comes through here.
- * Dsus4's flattened ring finger is common but not the textbook shape, and for
- * Em, E and Am — where the books always show two separate fingers — the join is
- * frankly an accommodation to glass, borrowing the trick barre players use when
- * a fret gets crowded. Turn it off to drill the shapes as written.
+ * Two dots side by side in the same fret is not on its own a reason to merge
+ * them. Em, E and Am are always taught with two separate fingers; so are the
+ * top two strings of Dsus4, where the whole trick is planting the ring and
+ * pinky and leaving them there through the change. Merging those would teach a
+ * fingering no one uses, on the instrument this is meant to transfer to.
  *
- * Never three under one finger. So a run of three becomes two targets rather
- * than one, and which two is not arbitrary: pairs are taken from the lowest
- * string upwards, because the index is the finger that bars and the hand comes
- * at the neck from the bass side. That gives A major index flat across D and G
- * with the middle on B, rather than a middle finger stretched over G and B,
- * which nobody plays.
+ * What is real is the mini-barre A — index flat across D and G, middle on B —
+ * the standard answer to three fingers not fitting in one fret. So the pairs
+ * come from the chord's own `join` list rather than from geometry, and a chord
+ * earns an entry there by being played that way, not by being crowded.
+ * Chords whose written fingering already bars (the easy F) arrive here as a
+ * single target and pass straight through.
  */
-function joinPairs(targets) {
-  const byFret = new Map();
+function joinPairs(targets, chord) {
+  const wanted = chord.join || [];
+  if (!wanted.length) return targets;
+
+  const single = new Map();                    // string -> its lone target
   for (const t of targets) {
-    if (t.strings.length !== 1) continue;      // real barres already span strings
-    if (!byFret.has(t.fret)) byFret.set(t.fret, []);
-    byFret.get(t.fret).push(t);
+    if (t.strings.length === 1) single.set(t.strings[0], t);
   }
 
   const joined = new Map();                    // target -> merged replacement
   const absorbed = [];                         // fingers the joins made spare
-  for (const group of byFret.values()) {
-    group.sort((a, b) => a.strings[0] - b.strings[0]);
-    let run = [group[0]];
-    const runs = [];
-    for (let i = 1; i < group.length; i++) {
-      if (group[i].strings[0] === run[run.length - 1].strings[0] + 1) run.push(group[i]);
-      else { runs.push(run); run = [group[i]]; }
-    }
-    runs.push(run);
+  for (const pair of wanted) {
+    const [lo, hi] = [...pair].sort((a, b) => a - b);
+    const lower = single.get(lo);
+    const upper = single.get(hi);
+    // The list is per chord, but a shape can arrive fingered differently; only
+    // merge when both strings really are stopped at the same fret, and never
+    // let one finger end up over three strings.
+    if (!lower || !upper || lower.fret !== upper.fret) continue;
+    if (joined.has(lower) || joined.has(upper)) continue;
 
-    for (const r of runs) {
-      // Pair upwards from the bass side in twos; an odd finger is left on its
-      // own at the top of the run rather than making a three.
-      for (let i = 0; i + 1 < r.length; i += 2) {
-        const lower = r[i];
-        const upper = r[i + 1];
-        joined.set(lower, {
-          fret: lower.fret,
-          finger: Math.min(lower.finger, upper.finger) || lower.finger,
-          strings: [lower.strings[0], upper.strings[0]],
-          pair: true,
-        });
-        joined.set(upper, null);               // absorbed
-        absorbed.push(upper.finger);
-      }
-    }
+    joined.set(lower, {
+      fret: lower.fret,
+      finger: Math.min(lower.finger, upper.finger) || lower.finger,
+      strings: [lo, hi],
+      pair: true,
+    });
+    joined.set(upper, null);                   // absorbed
+    absorbed.push(upper.finger);
   }
 
   // A shape that used three fingers now uses two, so the ones above the finger
