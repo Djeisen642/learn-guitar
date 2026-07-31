@@ -9,7 +9,7 @@
 // physical units are fiction on a phone (1mm is always 3.78px regardless of the
 // real display), so declaring `43mm` would produce a neck two thirds of life size.
 
-import { CHORD_BY_ID } from './data.js';
+import { CHORD_BY_ID, SONGS } from './data.js';
 import { strum, unlockAudio } from './audio.js';
 import * as haptics from './haptics.js';
 import * as store from './store.js';
@@ -89,6 +89,9 @@ function targetsFor(chord) {
 export function FretboardView(onLeave) {
   let chordId = PRACTICE.find((id) => !store.bestForm(id)) || PRACTICE[0];
   let chord = CHORD_BY_ID[chordId];
+  let song = null;         // a sequence to play through, or null for one chord
+  let step = 0;
+  let cleared = false;     // just finished a song, showing the flourish
   let targets = [];
   let heldSince = 0;
   let armed = true;        // must let go before the next rep counts
@@ -100,6 +103,8 @@ export function FretboardView(onLeave) {
   const nameEl = h('div', { class: 'fb-chord' });
   const statEl = h('div', { class: 'fb-stat' });
   const pipsEl = h('div', { class: 'fb-pips' });
+  const nextEl = h('div', { class: 'fb-next', hidden: true });
+  const progressEl = h('div', { class: 'fb-progress', hidden: true });
 
   // --- scale to the phone in hand -----------------------------------------
   let ppm = PX_PER_MM;
@@ -229,20 +234,38 @@ export function FretboardView(onLeave) {
 
     nameEl.textContent = chord.name;
     paintStat();
-    updateHeld([]);
+    // Reflect the touches actually down. Passing [] here would re-arm the rep
+    // detector while fingers are still on the glass, so a song could advance
+    // twice off one press.
+    updateHeld([...active.values()]);
   }
 
   function paintStat() {
-    const best = store.bestForm(chord.id);
     const scale = Math.round((ppm / PX_PER_MM) * 100);
-    // Say so plainly when the phone is too small for a real neck, rather than
-    // quietly showing a shrunken one.
     const size = scale >= 99 ? 'life size' : `${scale}% size`;
-    // The side column is narrow, so keep this to one short line.
-    statEl.textContent = best ? `${size} · ${(best / 1000).toFixed(1)}s best` : size;
     statEl.title = scale >= 99
       ? 'Shown at the size of a real 25.5" neck'
       : `This screen is too small for a real neck, so it is shown at ${scale}%`;
+
+    if (song) {
+      statEl.textContent = cleared
+        ? `${song.name} — all ${song.chords.length}!`
+        : `${song.name} · ${step + 1}/${song.chords.length}`;
+      const next = song.chords[(step + 1) % song.chords.length];
+      nextEl.textContent = `next ${CHORD_BY_ID[next]?.name || next}`;
+      nextEl.hidden = false;
+      progressEl.textContent = '';
+      song.chords.forEach((_, i) => progressEl.appendChild(
+        h('i', { class: i < step ? 'is-done' : i === step ? 'is-now' : '' })));
+      progressEl.hidden = false;
+      return;
+    }
+
+    const best = store.bestForm(chord.id);
+    // The side column is narrow, so keep this to one short line.
+    statEl.textContent = best ? `${size} · ${(best / 1000).toFixed(1)}s best` : size;
+    nextEl.hidden = true;
+    progressEl.hidden = true;
   }
 
   // --- touch ---------------------------------------------------------------
@@ -324,9 +347,22 @@ export function FretboardView(onLeave) {
     haptics.chord();
     board.classList.add('is-win');
     setTimeout(() => board.classList.remove('is-win'), 600);
+
+    if (song) {
+      cleared = step + 1 >= song.chords.length;
+      step = cleared ? 0 : step + 1;
+      if (cleared) haptics.finished();
+      chord = CHORD_BY_ID[song.chords[step]];
+      startedAt = Date.now();
+      paint();
+      paintList();
+      // Clear the flourish once they lift off for the next chord.
+      return;
+    }
+
     statEl.textContent = isBest
-      ? `Clean in ${(ms / 1000).toFixed(1)}s — best yet`
-      : `Clean in ${(ms / 1000).toFixed(1)}s · best ${(store.bestForm(chord.id) / 1000).toFixed(1)}s`;
+      ? `clean in ${(ms / 1000).toFixed(1)}s — best yet`
+      : `clean in ${(ms / 1000).toFixed(1)}s`;
     startedAt = Date.now();
   }
 
@@ -337,6 +373,10 @@ export function FretboardView(onLeave) {
   board.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     unlockAudio();
+    // A finished song keeps its flourish up until the next attempt begins —
+    // clearing it on repaint wiped it instantly, since the fingers that
+    // completed the song are still down at that moment.
+    if (cleared && active.size === 0) { cleared = false; paintStat(); }
     if (!startedAt) startedAt = Date.now();
     board.setPointerCapture(e.pointerId);
     active.set(e.pointerId, pointsIn(e));
@@ -355,24 +395,54 @@ export function FretboardView(onLeave) {
   board.addEventListener('pointercancel', lift);
   onLeave(() => { clearTimeout(holdTimer); active.clear(); });
 
-  // --- chord strip ---------------------------------------------------------
+  // --- side list: songs to play through, then single chords -----------------
   const strip = h('div', { class: 'fb-strip' });
-  PRACTICE.forEach((id) => {
-    const c = CHORD_BY_ID[id];
-    if (!c) return;
-    strip.appendChild(h('button', {
-      type: 'button',
-      class: 'fb-pick' + (id === chordId ? ' is-on' : ''),
-      onclick: (e) => {
-        chordId = id;
-        chord = c;
-        startedAt = Date.now();
-        armed = true;
-        [...strip.children].forEach((b) => b.classList.toggle('is-on', b === e.currentTarget));
-        paint();
-      },
-    }, c.name));
-  });
+
+  function selectSong(s) {
+    song = s;
+    step = 0;
+    cleared = false;
+    chord = CHORD_BY_ID[s.chords[0]];
+    startedAt = Date.now();
+    armed = true;
+    paint();
+    paintList();
+  }
+
+  function selectChord(id) {
+    song = null;
+    cleared = false;
+    chordId = id;
+    chord = CHORD_BY_ID[id];
+    startedAt = Date.now();
+    armed = true;
+    paint();
+    paintList();
+  }
+
+  function paintList() {
+    strip.textContent = '';
+    strip.appendChild(h('p', { class: 'fb-listhead' }, 'Songs'));
+    SONGS.forEach((s) => {
+      strip.appendChild(h('button', {
+        type: 'button',
+        class: 'fb-pick is-song' + (song?.id === s.id ? ' is-on' : ''),
+        title: s.note,
+        onclick: () => selectSong(s),
+      }, s.name));
+    });
+    strip.appendChild(h('p', { class: 'fb-listhead' }, 'Chords'));
+    PRACTICE.forEach((id) => {
+      const c = CHORD_BY_ID[id];
+      if (!c) return;
+      strip.appendChild(h('button', {
+        type: 'button',
+        class: 'fb-pick' + (!song && id === chordId ? ' is-on' : ''),
+        onclick: () => selectChord(id),
+      }, c.name));
+    });
+  }
+  paintList();
 
   // Measuring once is not enough: filling in the finger pips grows the header,
   // which shrinks the space the board was just sized against. Watching the stage
@@ -391,9 +461,6 @@ export function FretboardView(onLeave) {
 
   requestAnimationFrame(paint);
 
-  // Neck runs the full height against one screen edge; everything else lives in
-  // the column beside it. That reclaimed height is what buys true life size.
-  // CSS puts the neck on the right (row-reverse) — see .fb-page.
   // Always rendered, never silently absent: "I feel nothing" needs to be
   // distinguishable from "this phone has no vibration" and from "my fingers
   // aren't landing on the targets", and tapping it buzzes hard enough to tell.
@@ -439,7 +506,9 @@ export function FretboardView(onLeave) {
     stage,
     h('div', { class: 'fb-side' },
       h('div', { class: 'fb-head' }, nameEl, statEl),
+      progressEl,
       pipsEl,
+      nextEl,
       strip,
       buzzBtn,
     ),

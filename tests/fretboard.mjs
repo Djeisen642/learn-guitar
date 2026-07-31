@@ -180,6 +180,29 @@ export async function run(browser, base, log) {
     else pass(`completed chord buzzes a pattern (${onChord.find(Array.isArray).join('-')}ms)`);
     await reset();
 
+    // Song mode: forming the chord has to move the sequence on, and the
+    // finished flourish has to survive the fingers that earned it still being
+    // on the glass — clearing it on repaint wiped it instantly.
+    await page.locator('.fb-pick.is-song').first().click();
+    await page.waitForTimeout(350);
+    const seen = [];
+    for (let i = 0; i < 4; i++) {
+      const at = await page.evaluate(() => [...document.querySelectorAll('.fb-target')].map((t) => {
+        const r = t.getBoundingClientRect();
+        return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+      }));
+      seen.push(await page.locator('.fb-chord').textContent());
+      await touch('touchStart', at);
+      await page.waitForTimeout(460);
+      await touch('touchEnd', []);
+      await page.waitForTimeout(300);
+    }
+    const stat = await page.locator('.fb-stat').textContent();
+    if (new Set(seen).size < 2) fail(`song did not advance: stayed on ${seen.join(', ')}`);
+    else if (!/all \d+/.test(stat)) fail(`finishing a song shows "${stat}", not a completion`);
+    else pass(`song advances ${seen.join(' → ')} and reports "${stat}"`);
+    // The loop above already lifted off; no reset needed here.
+
     // Synthesis buffers are cached per pitch; without that a strum rebuilds
     // ~500KB per string on the main thread.
     await page.evaluate(() => {
