@@ -100,15 +100,22 @@ function targetsFor(chord, join = true) {
 /**
  * Neighbouring strings stopped at the same fret share a finger: at 7.3mm
  * spacing two fingertips fight each other on glass, and flattening one finger
- * across two strings is a shape a hand can actually make — it's how most people
- * play the top two strings of Dsus4, and the easy F needs it outright.
+ * across two strings is a shape a hand can actually make.
+ *
+ * How true that is to a real fingering varies by chord, which is why it's a
+ * toggle rather than a rule. A is the mini-barre teachers actually reach for.
+ * The easy F is already written with one, so it never comes through here.
+ * Dsus4's flattened ring finger is common but not the textbook shape, and for
+ * Em, E and Am — where the books always show two separate fingers — the join is
+ * frankly an accommodation to glass, borrowing the trick barre players use when
+ * a fret gets crowded. Turn it off to drill the shapes as written.
  *
  * Never three under one finger. So a run of three becomes two targets rather
  * than one, and which two is not arbitrary: pairs are taken from the lowest
  * string upwards, because the index is the finger that bars and the hand comes
- * at the neck from the bass side. That gives A major the mini-barre every
- * teacher reaches for — index flat across D and G, middle on B — rather than a
- * middle finger stretched over G and B, which nobody plays.
+ * at the neck from the bass side. That gives A major index flat across D and G
+ * with the middle on B, rather than a middle finger stretched over G and B,
+ * which nobody plays.
  */
 function joinPairs(targets) {
   const byFret = new Map();
