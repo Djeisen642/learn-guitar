@@ -170,6 +170,14 @@ export function FretboardView(onLeave) {
   const progressEl = h('div', { class: 'fb-progress', hidden: true });
   const hearBtn = h('button', { class: 'fb-hear', type: 'button', hidden: true }, '▶ hear it');
   hearBtn.addEventListener('click', playSong);
+  const speedBtn = h('button', { class: 'fb-buzz fb-speed', type: 'button', hidden: true });
+  speedBtn.addEventListener('click', () => {
+    const next = SPEEDS[(SPEEDS.indexOf(speed()) + 1) % SPEEDS.length];
+    store.setSetting('tempo', next);
+    paintSpeed();
+    haptics.tick();
+    if (playTimers.length) playSong();     // re-time what's already playing
+  });
 
   // --- scale to the phone in hand -----------------------------------------
   let ppm = PX_PER_MM;
@@ -325,12 +333,28 @@ export function FretboardView(onLeave) {
     playTimers = [];
     hearBtn?.classList.remove('is-playing');
   }
+  // "Start slow" is the oldest advice there is, and the only way a change gets
+  // clean: the bar has to last long enough for your hand to arrive.
+  const SPEEDS = [0.5, 0.7, 1];
+  const SPEED_LABEL = { 0.5: 'half speed', 0.7: '70% speed', 1: 'full speed' };
+  const speed = () => (SPEEDS.includes(store.getSetting('tempo')) ? store.getSetting('tempo') : 1);
+  const beatSeconds = () => 60 / ((song?.bpm || 90) * speed());
+
+  function paintSpeed() {
+    const s = speed();
+    speedBtn.textContent = SPEED_LABEL[s];
+    speedBtn.classList.toggle('is-on', s < 1);
+    speedBtn.title = s < 1
+      ? `Bars play at ${Math.round(s * 100)}% of ${song?.name || 'the song'}'s tempo, so there is time to move. Tap to speed up.`
+      : 'Bars play at the song\'s own tempo. Tap to slow it down while a change is still new.';
+  }
+
   function playSong() {
     stopPlayback();
     if (!song) return;
     unlockAudio();
     hearBtn.classList.add('is-playing');
-    const secondsPerBeat = 60 / (song.bpm || 90);
+    const secondsPerBeat = beatSeconds();
     const schedule = strumSchedule(song);
     for (const s of schedule) {
       const c = CHORD_BY_ID[s.chord];
@@ -356,6 +380,8 @@ export function FretboardView(onLeave) {
       nextEl.textContent = `next ${CHORD_BY_ID[next]?.name || next}`;
       nextEl.hidden = false;
       hearBtn.hidden = false;
+      speedBtn.hidden = false;
+      paintSpeed();
       // Segments are sized by how long each chord lasts, so the bar doubles as
       // a picture of the rhythm rather than implying every change is equal.
       progressEl.textContent = '';
@@ -373,6 +399,7 @@ export function FretboardView(onLeave) {
     nextEl.hidden = true;
     progressEl.hidden = true;
     hearBtn.hidden = true;
+    speedBtn.hidden = true;    // a lone chord rings once; there is no tempo
     stopPlayback();
   }
 
@@ -465,7 +492,7 @@ export function FretboardView(onLeave) {
       // You fret, the phone strums: hold the shape and it plays that chord's
       // bar in the song's own rhythm, then moves on. A single strike told you
       // the shape was right but never sounded like the song.
-      const secondsPerBeat = 60 / (song.bpm || 90);
+      const secondsPerBeat = beatSeconds();
       const here = step;
       for (const s of stepStrums(song, here)) {
         playTimers.push(setTimeout(() => strum(chord, s.direction, s.velocity), s.offset * secondsPerBeat * 1000));
@@ -657,6 +684,7 @@ export function FretboardView(onLeave) {
       pipsEl,
       nextEl,
       hearBtn,
+      speedBtn,
       strip,
       joinBtn,
       buzzBtn,

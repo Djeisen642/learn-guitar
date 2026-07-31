@@ -356,6 +356,37 @@ export async function run(browser, base, log) {
     if (moved > 1) fail(`re-pressing mid-bar advanced ${moved} chords at once ("${before}" → "${after}")`);
     else pass(`re-pressing mid-bar restarts the bar rather than doubling it ("${before}" → "${after}")`);
 
+    // Slowing down has to actually give the hand more time: the bar must last
+    // longer before the song moves on, not just sound slower.
+    const barMs = async () => {
+      const from = await page.locator('.fb-stat').textContent();
+      const t0 = Date.now();
+      await touch('touchStart', await grab());
+      for (let i = 0; i < 80; i++) {
+        await page.waitForTimeout(100);
+        if ((await page.locator('.fb-stat').textContent()) !== from) break;
+      }
+      const ms = Date.now() - t0;
+      await touch('touchEnd', []);
+      await page.waitForTimeout(300);
+      return ms;
+    };
+    const full = await barMs();
+    await page.locator('.fb-speed').click();     // full → half
+    const label = await page.locator('.fb-speed').textContent();
+    const slow = await barMs();
+    // Warm-up is 4 beats at 100bpm: 2.4s a bar, 4.8s at half speed. The bounds
+    // are loose because the poll and the touch add their own tenths.
+    if (!/half/.test(label)) fail(`tempo button says "${label}" after one tap, expected half speed`);
+    else if (slow < full * 1.5) fail(`half speed took ${slow}ms a bar against ${full}ms at full — barely slower`);
+    else pass(`half speed stretches the bar ${(full / 1000).toFixed(1)}s → ${(slow / 1000).toFixed(1)}s`);
+    // Round the cycle back to full speed, which the timings below assume.
+    await page.locator('.fb-speed').click();
+    await page.locator('.fb-speed').click();
+    const back = await page.locator('.fb-speed').textContent();
+    if (!/full/.test(back)) fail(`tempo button cycles to "${back}", never back to full speed`);
+    else pass('the tempo button cycles half → 70% → full');
+
     // Playing a song back must use its own timing, not one chord per tick.
     await page.locator('.fb-pick.is-song', { hasText: 'Heaven' }).first().click();
     await page.waitForTimeout(300);
