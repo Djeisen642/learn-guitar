@@ -368,10 +368,12 @@ export const SONGS = [
     note: 'Not a song — three easy shapes in a loop, to get the hand moving.',
   },
   {
-    id: 'grace', name: 'Amazing Grace', chords: ['G', 'G7', 'C', 'G', 'D', 'G'],
-    meter: 3, bpm: 92, beats: [3, 3, 3, 9, 6, 6],
-    note: 'Traditional, 3/4. G–C–G–D is the skeleton every arrangement shares; '
-      + 'the G7 is an optional passing chord that pulls the ear across to the C.',
+    id: 'grace', name: 'Amazing Grace', chords: ['C', 'Fmini', 'C', 'G7', 'C', 'Fmini', 'C', 'G7', 'C'],
+    meter: 3, bpm: 92, beats: [3, 3, 6, 12, 3, 3, 6, 6, 6],
+    note: 'The whole verse, 16 bars of 3/4. Written in E on the sheet this came '
+      + 'from and taken down to C, which sits lower and is easier to sing. The IV '
+      + 'lands on "grace" and the V7 carries the second line; F is the easy '
+      + 'four-string one.',
   },
   {
     id: 'heaven', name: "Heaven's Door", chords: ['G', 'D', 'Am', 'G', 'D', 'C'],
