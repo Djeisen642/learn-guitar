@@ -86,6 +86,21 @@ export async function run(browser, base, log) {
       }
     }
 
+    // A phone has a rim and a case lip where a fretboard just ends flat, so the
+    // outer string must not sit hard against the screen edge.
+    const guardMM = await page.evaluate(() => {
+      const s = [...document.querySelectorAll('.fb-string')].pop().getBoundingClientRect();
+      return window.innerWidth - (s.left + s.width / 2);
+    }) / PX_PER_MM;
+    if (guardMM < 6.5) fail(`${name}: outer string only ${guardMM.toFixed(1)}mm from the screen edge`);
+    else pass(`${name}: outer string ${guardMM.toFixed(1)}mm clear of the phone's edge`);
+
+    // The narrow column must not clip its own labels.
+    const clipped = await page.evaluate(() => [...document.querySelectorAll('.fb-pick')]
+      .filter((e) => e.scrollWidth > e.clientWidth + 1).map((e) => e.textContent));
+    if (clipped.length) fail(`${name}: side list clips ${clipped.join(', ')}`);
+    else pass(`${name}: every song and chord label fits the column`);
+
     // Every chord's targets must sit on the board.
     for (const id of ['C', 'G', 'A', 'Fmini']) {
       await page.locator('.fb-pick', { hasText: new RegExp(`^${id === 'Fmini' ? 'F' : id}$`) }).first().click();

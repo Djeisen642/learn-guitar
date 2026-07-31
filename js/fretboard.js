@@ -25,7 +25,16 @@ const FRETS = 3;          // every open chord lives inside frets 1-3
 const PX_PER_MM = 6.05;
 
 const MARKER_PX = 30;     // gap above the nut for the o / x row; matches .fb margin-top
-const SIDE_MIN_PX = 92;   // narrowest the column beside the neck may get
+const SIDE_MIN_PX = 62;   // narrowest the column beside the neck may get
+
+// A phone has a rim, a case lip and often a curve where a fretboard just ends
+// flat, so a string sitting hard against the edge can't be pressed cleanly.
+// This is dead space between the outer string and the screen edge. It costs
+// nothing in fidelity: string and fret spacing are what transfer, and the
+// distance out to the phone's rim is not part of the instrument. Measured in
+// real millimetres against the unscaled constant, because a physical edge does
+// not shrink when the board does.
+const EDGE_GUARD_MM = 8;
 const HOLD_MS = 260;      // shape must be held, not just brushed
 
 // Targets are rectangles, sized to the largest area that is still honest.
@@ -119,7 +128,11 @@ export function FretboardView(onLeave) {
       : 600;
     const trueH = fretMM(FRETS) * PX_PER_MM;
     const trueW = (STRING_MM * 5 + EDGE_MM * 2) * PX_PER_MM;
-    const room = window.innerWidth - 3 - SIDE_MIN_PX;
+    // The board already draws EDGE_MM of fretboard beyond the outer string, so
+    // only the shortfall has to come out of the layout.
+    const guard = Math.max(0, (EDGE_GUARD_MM - EDGE_MM) * PX_PER_MM);
+    stage.style.paddingRight = `${guard.toFixed(1)}px`;
+    const room = window.innerWidth - guard - SIDE_MIN_PX;
     // Shrink only if the phone genuinely can't fit a real neck.
     ppm = PX_PER_MM * Math.min(1, avail > 0 ? avail / trueH : 1, room / trueW);
     // Never exceed life size, but do let the fretboard run on into any space
@@ -429,7 +442,7 @@ export function FretboardView(onLeave) {
         class: 'fb-pick is-song' + (song?.id === s.id ? ' is-on' : ''),
         title: s.note,
         onclick: () => selectSong(s),
-      }, s.name));
+      }, s.short || s.name));
     });
     strip.appendChild(h('p', { class: 'fb-listhead' }, 'Chords'));
     PRACTICE.forEach((id) => {

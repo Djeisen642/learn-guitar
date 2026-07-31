@@ -345,37 +345,38 @@ export const PROGRESSIONS = [
   },
 ];
 
-// Short chord sequences to play through on the fretboard. Every chord is an
+// Short chord sequences to play through on the fretboard. `short` is what fits
+// the narrow list beside the neck; `name` is shown in full once one is playing. Every chord is an
 // open shape inside the first three frets, so the whole song fits on the neck
 // without moving position. Kept to a handful of steps each — the point is to
 // chain changes together, not to memorise an arrangement.
 export const SONGS = [
   {
-    id: 'warmup', name: 'Warm-up', chords: ['Em', 'A', 'Em', 'D'],
+    id: 'warmup', name: 'Warm-up', short: 'Warm-up', chords: ['Em', 'A', 'Em', 'D'],
     note: 'Two of the easiest shapes, and back again.',
   },
   {
-    id: 'grace', name: 'Amazing Grace', chords: ['G', 'C', 'G', 'D'],
+    id: 'grace', name: 'Amazing Grace', short: 'Grace', chords: ['G', 'C', 'G', 'D'],
     note: 'Traditional. The G–C change is the one worth the reps.',
   },
   {
-    id: 'heaven', name: "Heaven's Door", chords: ['G', 'D', 'Am', 'G', 'D', 'C'],
+    id: 'heaven', name: "Heaven's Door", short: 'Heaven', chords: ['G', 'D', 'Am', 'G', 'D', 'C'],
     note: 'The whole verse is these six.',
   },
   {
-    id: 'letitbe', name: 'Let It Be', chords: ['C', 'G', 'Am', 'Fmini'],
+    id: 'letitbe', name: 'Let It Be', short: 'Let It Be', chords: ['C', 'G', 'Am', 'Fmini'],
     note: 'I–V–vi–IV in C, with the easy F.',
   },
   {
-    id: 'rising', name: 'Rising Sun', chords: ['Am', 'C', 'D', 'Fmini', 'Am', 'E7'],
+    id: 'rising', name: 'Rising Sun', short: 'Rising', chords: ['Am', 'C', 'D', 'Fmini', 'Am', 'E7'],
     note: 'Traditional, and a good minor-key workout.',
   },
   {
-    id: 'blues', name: '12-bar blues', chords: ['A7', 'D7', 'A7', 'E7', 'D7', 'A7'],
+    id: 'blues', name: '12-bar blues', short: '12-bar', chords: ['A7', 'D7', 'A7', 'E7', 'D7', 'A7'],
     note: 'The 12 bars condensed to their six changes.',
   },
   {
-    id: 'britpop', name: 'Britpop loop', chords: ['Em', 'G', 'Dsus4', 'Cadd9'],
+    id: 'britpop', name: 'Britpop loop', short: 'Britpop', chords: ['Em', 'G', 'Dsus4', 'Cadd9'],
     note: 'Keep fingers 3 and 4 down throughout.',
   },
 ];
