@@ -442,6 +442,29 @@ export function strumSchedule(song) {
   return out;
 }
 
+/**
+ * The strums for one step, timed from the moment you form that chord.
+ *
+ * Unlike strumSchedule this restarts the pattern at each chord rather than
+ * carrying it across bar lines. When a person is fretting each shape in their
+ * own time the continuity is already broken, and slicing the continuous
+ * schedule would leave chords whose first strum falls half a beat late — you'd
+ * press and hear nothing.
+ */
+export function stepStrums(song, index) {
+  const pattern = STRUM_BY_METER[song.meter] || STRUM_BY_METER[4];
+  const beats = song.beats[index];
+  const out = [];
+  for (let bar = 0; bar * song.meter < beats; bar++) {
+    for (const [offset, direction] of pattern) {
+      const at = bar * song.meter + offset;
+      if (at >= beats) break;
+      out.push({ offset: at, direction });
+    }
+  }
+  return out;
+}
+
 // Strumming patterns, written as down/up over one bar of 4/4.
 export const STRUMS = [
   { name: 'All down', pattern: ['D', 'D', 'D', 'D'], counts: ['1', '2', '3', '4'], note: 'Start here. Keep the wrist loose and the tempo dead even.' },

@@ -263,17 +263,35 @@ export async function run(browser, base, log) {
     // on the glass — clearing it on repaint wiped it instantly.
     await page.locator('.fb-pick.is-song').first().click();
     await page.waitForTimeout(350);
+
+    // Forming the chord must strum its bar, not strike it once. This is the
+    // thing that was missing: automatic strumming existed only behind the
+    // listen button, so actually playing a song gave one hit per chord.
+    await page.evaluate(() => { window.__notes = 0; });
+    const at0 = await page.evaluate(() => [...document.querySelectorAll('.fb-target')].map((t) => {
+      const r = t.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    }));
+    await touch('touchStart', at0);
+    await page.waitForTimeout(2200);
+    const plucks = await page.evaluate(() => window.__notes);
+    // A Horse with No Name is 4 beats at 120bpm: six strums of six strings.
+    if (plucks < 18) fail(`forming a chord in a song made ${plucks} plucks — that's a single strum, not a bar`);
+    else pass(`forming a chord strums its whole bar (${plucks} plucks)`);
+    await touch('touchEnd', []);
+    await page.waitForTimeout(400);
+
     const seen = [];
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 3; i++) {
       const at = await page.evaluate(() => [...document.querySelectorAll('.fb-target')].map((t) => {
         const r = t.getBoundingClientRect();
         return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
       }));
       seen.push(await page.locator('.fb-chord').textContent());
       await touch('touchStart', at);
-      await page.waitForTimeout(460);
+      await page.waitForTimeout(2400);   // hold while the bar plays out
       await touch('touchEnd', []);
-      await page.waitForTimeout(300);
+      await page.waitForTimeout(350);
     }
     const stat = await page.locator('.fb-stat').textContent();
     if (new Set(seen).size < 2) fail(`song did not advance: stayed on ${seen.join(', ')}`);
