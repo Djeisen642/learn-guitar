@@ -23,6 +23,8 @@ const FRETS = 3;          // every open chord lives inside frets 1-3
 // this is the honest average.
 const PX_PER_MM = 6.05;
 
+const MARKER_PX = 30;     // gap above the nut for the o / x row; matches .fb margin-top
+const SIDE_MIN_PX = 92;   // narrowest the column beside the neck may get
 const HOLD_MS = 260;      // shape must be held, not just brushed
 const TOUCH_MM = 5.2;     // how close a fingertip must land
 const DOT_MM = 3.8;       // drawn fingertip radius — smaller than the tolerance
@@ -77,6 +79,7 @@ export function FretboardView(onLeave) {
   let holdTimer = null;
 
   const board = h('div', { class: 'fb' });
+  const stage = h('div', { class: 'fb-stage' }, board);
   const nameEl = h('div', { class: 'fb-chord' });
   const statEl = h('div', { class: 'fb-stat' });
   const pipsEl = h('div', { class: 'fb-pips' });
@@ -87,16 +90,19 @@ export function FretboardView(onLeave) {
   let boardW = 0;
 
   function measure() {
-    const markerPx = 30;                       // room above the nut for o / x
-    const avail = board.parentElement
-      ? board.parentElement.getBoundingClientRect().height - markerPx
+    // MARKER_PX must match .fb's top margin, which is layout the board sits
+    // below rather than inside.
+    const avail = stage
+      ? stage.getBoundingClientRect().height - MARKER_PX
       : 600;
     const trueH = fretMM(FRETS) * PX_PER_MM;
     const trueW = (STRING_MM * 5 + EDGE_MM * 2) * PX_PER_MM;
-    const room = Math.min(window.innerWidth - 24, 520);
+    const room = window.innerWidth - 3 - SIDE_MIN_PX;
     // Shrink only if the phone genuinely can't fit a real neck.
     ppm = PX_PER_MM * Math.min(1, avail > 0 ? avail / trueH : 1, room / trueW);
-    boardH = fretMM(FRETS) * ppm;
+    // Never exceed life size, but do let the fretboard run on into any space
+    // left over — a real neck doesn't stop dead after the third fret.
+    boardH = Math.max(fretMM(FRETS) * ppm, Math.min(avail, fretMM(FRETS + 2) * ppm));
     boardW = (STRING_MM * 5 + EDGE_MM * 2) * ppm;
   }
 
@@ -113,14 +119,22 @@ export function FretboardView(onLeave) {
 
     board.appendChild(h('div', { class: 'fb-nut' }));
 
-    for (let n = 1; n <= FRETS; n++) {
+    // Draw every fret that fits, not just the three the chords use, so the neck
+    // reads as continuing rather than stopping at the edge of the board.
+    // `<= boardH` matters: on a short screen fret 3 lands exactly on the bottom
+    // edge, and dropping its wire would leave C and G looking unfretted.
+    for (let n = 1; n <= FRETS + 2 && fretMM(n) * ppm <= boardH + 1; n++) {
       board.appendChild(h('div', { class: 'fb-fret', style: `top:${fretMM(n) * ppm}px` }));
     }
-    // Real necks carry a position dot at the 3rd fret; it's how you find your place.
-    board.appendChild(h('div', {
-      class: 'fb-inlay',
-      style: `top:${pressMM(3) * ppm}px; left:${boardW / 2}px`,
-    }));
+    // Real necks carry position dots at the 3rd and 5th frets; that's how you
+    // find your place without looking at the headstock.
+    for (const n of [3, 5]) {
+      if (fretMM(n) * ppm >= boardH) continue;
+      board.appendChild(h('div', {
+        class: 'fb-inlay',
+        style: `top:${pressMM(n) * ppm}px; left:${boardW / 2}px`,
+      }));
+    }
 
     for (let s = 0; s < 6; s++) {
       board.appendChild(h('div', {
@@ -168,10 +182,14 @@ export function FretboardView(onLeave) {
   function paintStat() {
     const best = store.bestForm(chord.id);
     const scale = Math.round((ppm / PX_PER_MM) * 100);
-    statEl.textContent = best
-      ? `${chord.full} · best ${(best / 1000).toFixed(1)}s`
-      : `${chord.full} · place every numbered finger`;
-    statEl.title = scale >= 99 ? 'Shown at life size' : `Shown at ${scale}% of a real neck`;
+    // Say so plainly when the phone is too small for a real neck, rather than
+    // quietly showing a shrunken one.
+    const size = scale >= 99 ? 'life size' : `${scale}% size`;
+    // The side column is narrow, so keep this to one short line.
+    statEl.textContent = best ? `${size} · ${(best / 1000).toFixed(1)}s best` : size;
+    statEl.title = scale >= 99
+      ? 'Shown at the size of a real 25.5" neck'
+      : `This screen is too small for a real neck, so it is shown at ${scale}%`;
   }
 
   // --- touch ---------------------------------------------------------------
@@ -302,17 +320,32 @@ export function FretboardView(onLeave) {
     }, c.name));
   });
 
-  const stage = h('div', { class: 'fb-stage' }, board);
-  const onResize = () => paint();
-  window.addEventListener('resize', onResize);
-  onLeave(() => window.removeEventListener('resize', onResize));
+  // Measuring once is not enough: filling in the finger pips grows the header,
+  // which shrinks the space the board was just sized against. Watching the stage
+  // catches that, plus fonts loading, rotation, and the browser bar sliding away.
+  let settling = false;
+  const ro = new ResizeObserver(() => {
+    if (settling) return;
+    const before = boardH;
+    settling = true;
+    paint();
+    settling = false;
+    if (Math.abs(before - boardH) > 1) paint();
+  });
+  ro.observe(stage);
+  onLeave(() => ro.disconnect());
 
-  // The board needs its parent measured, so paint after layout settles.
   requestAnimationFrame(paint);
 
+  // Neck runs the full height against one screen edge; everything else lives in
+  // the column beside it. That reclaimed height is what buys true life size.
+  // CSS puts the neck on the right (row-reverse) — see .fb-page.
   return h('div', { class: 'fb-page' },
-    h('div', { class: 'fb-head' }, nameEl, statEl, pipsEl),
     stage,
-    strip,
+    h('div', { class: 'fb-side' },
+      h('div', { class: 'fb-head' }, nameEl, statEl),
+      pipsEl,
+      strip,
+    ),
   );
 }

@@ -369,18 +369,30 @@ body.play-mode .topbar { display: none; }
   display: flex; flex-direction: column;
   height: calc(100vh - var(--tabbar-h) - env(safe-area-inset-bottom));
   height: calc(100dvh - var(--tabbar-h) - env(safe-area-inset-bottom));
-  padding: max(8px, env(safe-area-inset-top)) 8px 6px;
-  gap: 6px;
+  /* Neck and controls side by side: the neck gets the full column height,
+     which is what lets it reach the size of a real one. The neck sits on the
+     RIGHT because that is the edge your fingers come over when the phone is
+     held like a neck -- thumb behind, fingertips emerging on the far side. */
+  flex-direction: row-reverse; align-items: stretch;
+  /* No right padding: the neck runs right up to the edge (see .fb-stage). */
+  padding: max(6px, env(safe-area-inset-top)) env(safe-area-inset-right) 6px 8px;
+  gap: 8px;
 }
 
-.fb-head { text-align: center; flex: none; }
-.fb-chord { font-size: 26px; font-weight: 700; line-height: 1.1; }
+.fb-side {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column; gap: 6px;
+  padding-top: 2px;
+}
+
+.fb-head { text-align: left; flex: none; }
+.fb-chord { font-size: 23px; font-weight: 700; line-height: 1.1; }
 .fb-stat { font-size: 12.5px; color: var(--text-dim); margin-top: 2px; min-height: 18px; }
 
 /* One pip per finger, mirroring the targets your hand is covering. */
-.fb-pips { display: flex; gap: 6px; justify-content: center; margin-top: 6px; min-height: 22px; }
+.fb-pips { display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-start; flex: none; min-height: 20px; }
 .fb-pip {
-  width: 22px; height: 22px; border-radius: 999px;
+  width: 20px; height: 20px; border-radius: 999px;
   display: grid; place-items: center;
   font-size: 11px; font-weight: 700;
   color: var(--text-dim);
@@ -388,7 +400,17 @@ body.play-mode .topbar { display: none; }
 }
 .fb-pip.is-on { background: var(--good); border: 2px solid var(--good); color: #fff; }
 
-.fb-stage { flex: 1; display: flex; justify-content: center; align-items: flex-start; min-height: 0; }
+/* Flush to the edge, so you can hold the phone like a neck — thumb behind,
+   fingers curling over the rim onto the strings — rather than reaching across
+   flat glass to a board floating in the middle. */
+.fb-stage {
+  flex: none; display: flex; justify-content: flex-start; align-items: flex-start; min-height: 0;
+  /* A hair of gutter: the nut overhangs 2px and an outer target overhangs ~1px. */
+  padding-right: 3px;
+  /* Belt and braces: absolutely-positioned strings paint above the static chord
+     buttons, so any mis-measurement would draw the neck straight through them. */
+  overflow: hidden;
+}
 
 /* The board itself is sized in JS from real neck measurements. */
 .fb {
@@ -456,13 +478,16 @@ body.play-mode .topbar { display: none; }
   .fb-target { transition: none; }
 }
 
+/* The chord list runs down the side column now, not across the bottom. */
 .fb-strip {
-  flex: none; display: flex; gap: 6px; overflow-x: auto;
-  scrollbar-width: none; padding-bottom: 2px;
+  flex: 1; min-height: 0;
+  display: flex; flex-direction: column; gap: 6px;
+  overflow-y: auto; overscroll-behavior: contain;
+  scrollbar-width: none;
 }
 .fb-strip::-webkit-scrollbar { display: none; }
 .fb-pick {
-  flex: none; min-width: 52px; min-height: 44px;
+  flex: none; width: 100%; min-height: 44px;
   appearance: none; font: inherit; font-size: 15px; font-weight: 650; cursor: pointer;
   padding: 8px 12px; border-radius: 10px;
   background: var(--bg-raised); border: 1px solid var(--line); color: var(--text);

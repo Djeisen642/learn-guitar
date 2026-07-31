@@ -46,12 +46,39 @@ so there are no audio files to download and the whole app works offline once loa
 
 ## Running locally
 
-Any static server works — ES modules and the service worker need HTTP, not `file://`:
+The app itself has no dependencies and no build step, so any static server works
+(ES modules and the service worker need HTTP, not `file://`):
 
 ```sh
-python3 -m http.server 8000
-# then open http://localhost:8000
+npm run serve      # or: python3 -m http.server 8000
 ```
+
+## Tests
+
+```sh
+npm install
+npm test
+```
+
+Drives the real app in headless Chromium. Every assertion exists because
+something actually broke:
+
+- **Layout** — 7 phone sizes × 9 routes: no horizontal overflow, nothing spilling
+  its container, no clipped tab labels, no console errors, tap targets ≥ 40px.
+- **Regressions** — the chord sheet used to leave an invisible tap-blocking
+  overlay after closing; a deep-linked sheet's close button navigated off the
+  site; clearing the drill's chord list crashed.
+- **Offline** — reloads with the network cut and still runs.
+- **Fretboard geometry** — asserts frets and string spacing land within 0.5mm of
+  a real 25.5" neck, that no chord's finger targets fall off the board, and that
+  a phone too small to fit a real neck *says so* rather than quietly shrinking.
+- **Touch honesty** — a chord must sound for three fingers one-per-target, and
+  must stay silent for two fingers, for one broad touch straddling two targets,
+  and for the right shape on the wrong fret.
+
+Set `CHROMIUM_PATH` if Playwright's bundled browser isn't available.
+
+`npm run icons` regenerates the PNG app icons from the SVG sources.
 
 ## Deployment
 
