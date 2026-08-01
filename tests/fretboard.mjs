@@ -119,7 +119,7 @@ export async function run(browser, base, log) {
     })));
     const named = ['index', 'middle', 'ring', 'pinky'];
     for (const l of labels) {
-      if (!named.some((n) => l.name?.startsWith(n))) fail(`${name}: target ${l.num} labelled "${l.name}"`);
+      if (!named.some((n) => l.name?.startsWith(n))) fail(`${name}: target ${l.num} labeled "${l.name}"`);
       // A circle the size of a fingertip was too small to hit or to label.
       if (l.w < 30 || l.h < 60) fail(`${name}: target ${l.num} only ${l.w}x${l.h}px`);
     }
@@ -155,12 +155,12 @@ export async function run(browser, base, log) {
     else if (solo.some((l) => l.includes('×2'))) fail(`${name}: joining off but still paired: ${solo.join(', ')}`);
     else pass(`${name}: the join toggle turns A back into three separate fingers`);
 
-    // A major puts three fingers on neighbouring strings at one fret. The middle
+    // A major puts three fingers on neighboring strings at one fret. The middle
     // one must stay inside its 7.3mm lane — widening it would start accepting
-    // the neighbouring string, which is a wrong note — while still standing the
+    // the neighboring string, which is a wrong note — while still standing the
     // full height of the fret cell, where the pitch is identical anyway.
     if (scale > 0.99) {
-      // A major is the case that matters: three fingers on neighbouring strings
+      // A major is the case that matters: three fingers on neighboring strings
       // in one fret, so the middle one is hemmed in on both sides. A chord like
       // Em only crowds one side, and there the lane is allowed to widen.
       // Joining is still off from the check above, which is what puts three

@@ -1,19 +1,19 @@
-// The maths behind the life-size neck: where frets and strings land, how big a
+// The math behind the life-size neck: where frets and strings land, how big a
 // target may honestly be, and which touch belongs to which target.
 //
 // Kept apart from the view because none of it needs a DOM. Geometry that can
 // only be checked by taking a screenshot is geometry nobody checks.
 //
-// Everything is computed in millimetres and converted to pixels here. CSS
+// Everything is computed in millimeters and converted to pixels here. CSS
 // physical units are fiction on a phone (1mm is always 3.78px regardless of the
 // real display), so declaring `43mm` would produce a neck two thirds of life size.
 
 export const SCALE_MM = 647.7;   // 25.5" scale length, the Fender/Martin standard
-export const STRING_MM = 7.3;    // string centres at the nut
+export const STRING_MM = 7.3;    // string centers at the nut
 export const EDGE_MM = 3.6;      // fretboard beyond the outer strings
 export const FRETS = 3;          // every open chord lives inside frets 1-3
 
-// Phones cluster tightly around 6 CSS px per physical millimetre: an iPhone 12
+// Phones cluster tightly around 6 CSS px per physical millimeter: an iPhone 12
 // is 6.04, a Pixel 7 6.24, a Galaxy S23 5.58. There's no API for real DPI, so
 // this is the honest average.
 export const PX_PER_MM = 6.05;
@@ -26,7 +26,7 @@ const SIDE_MIN_PX = 62;          // narrowest the column beside the neck may get
 // glass you have to reach across before the first string. The board is run off
 // the right edge instead and the surplus clipped, putting the outer string
 // almost against the rim — where a finger curling over the edge actually lands.
-// Physical millimetres, against the unscaled constant, since the phone's rim
+// Physical millimeters, against the unscaled constant, since the phone's rim
 // doesn't shrink when the board does.
 const STRING_EDGE_MM = 1.5;
 const LAYOUT_GAP_PX = 12;        // page padding plus the gap to the side column
@@ -39,16 +39,16 @@ const LAYOUT_GAP_PX = 12;        // page padding plus the gap to the side column
 //
 // Horizontally it is the string lane, because pressing the wrong string is a
 // wrong note. That caps the width at the 7.3mm string spacing wherever a chord
-// puts fingers on neighbouring strings, which is under the ~10mm that touch
+// puts fingers on neighboring strings, which is under the ~10mm that touch
 // research treats as the floor for reliable hits (fingertip contact is 8-14mm).
 // That gap is exactly why three-in-a-fret feels cramped on glass, and it isn't
 // something the app can design away without lying about the instrument. Where
-// no neighbouring finger is in the way, the lane widens toward that 10mm.
+// no neighboring finger is in the way, the lane widens toward that 10mm.
 const LANE_MAX_MM = 10;
 const WIRE_INSET_MM = 1;         // keep the fret wires readable as edges
 const EDGE_FORGIVE_MM = 1.5;
 
-/** Distance from the nut to fret `n`, in millimetres. */
+/** Distance from the nut to fret `n`, in millimeters. */
 export const fretMM = (n) => SCALE_MM - SCALE_MM / Math.pow(2, n / 12);
 
 // Press just behind the fret wire — that's where a note rings cleanly, so the
@@ -95,7 +95,7 @@ export function fitBoard(avail, viewW) {
 /**
  * The largest rectangle that is still a correct answer for target `t`: the full
  * fret cell tall, and as wide as the string lane can grow before it would reach
- * a neighbouring finger in the same fret.
+ * a neighboring finger in the same fret.
  *
  * `others` is every target in the shape, `t` included; only the ones sharing a
  * fret can crowd it.
@@ -126,7 +126,7 @@ export function targetRect(t, others, ppm, boardW) {
 }
 
 /**
- * Distance from a touch to a target's centre, or null if the touch is outside
+ * Distance from a touch to a target's center, or null if the touch is outside
  * the drawn rectangle. Hit area and drawing come from the same rect, so nothing
  * is secretly bigger or smaller than it looks.
  */

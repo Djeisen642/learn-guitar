@@ -25,7 +25,7 @@ dependencies, no accounts — just static files served by GitHub Pages.
 - **Songs** — seven progressions (I–V–vi–IV, I–IV–V, 12-bar blues and friends) in
   several keys, each playable and loadable into the chord changer.
 
-Chords are synthesised in the browser with Karplus–Strong plucked-string synthesis,
+Chords are synthesized in the browser with Karplus–Strong plucked-string synthesis,
 so there are no audio files to download and the whole app works offline once loaded.
 
 ## Built for a phone
@@ -35,13 +35,13 @@ so there are no audio files to download and the whole app works offline once loa
 - Timed drills hold a screen wake lock so the phone doesn't dim mid-count, and the
   one-minute countdown runs against a wall-clock deadline so it can't drift or stall.
   Metronomes stop when you switch away rather than bursting on return.
-- Synthesised buffers are cached per pitch, so a six-string strum allocates nothing
+- Synthesized buffers are cached per pitch, so a six-string strum allocates nothing
   after the first time; everything runs through a limiter so stacked notes don't clip.
 - Tap targets are at least 44px, double-tap zoom is disabled on controls, and the
   strum area claims its touches so the page can't scroll under your thumb.
 - Verified with no layout overflow from 320px up, plus landscape.
 - Asks the platform to lock to portrait where that's allowed (an installed PWA on
-  Android), and since neither a browser tab nor iOS honours that, a phone held in
+  Android), and since neither a browser tab nor iOS honors that, a phone held in
   landscape gets a dismissible banner explaining how to lock rotation by hand.
 
 ## Running locally
@@ -115,7 +115,7 @@ js/lifecycle.js   what a view registers so navigating away really stops it
 
 js/data.js        chord shapes, curriculum stages, progressions, songs, strums
 js/store.js       localStorage progress: learned chords, best scores, day streak
-js/notes.js       tuning, note names, fret -> pitch maths
+js/notes.js       tuning, note names, fret -> pitch math
 js/audio.js       Karplus–Strong pluck synthesis and the metronome click
 js/dom.js         the element helper every view builds with
 js/wake.js        screen wake lock, and stopping when the user looks away
@@ -137,5 +137,5 @@ Chord data uses one convention throughout: `frets` and `fingers` run from the lo
 Two rules keep the wiring honest. A view never cleans up after itself on the way
 out — it registers cleanup with `lifecycle.js` and the router empties that before
 it renders anything. And one screen hands work to another through the URL, never
-through a module variable: the Songs tab's "practise with the changer" link is
+through a module variable: the Songs tab's "practice with the changer" link is
 `#/practice/drill/G-D-Em-C`, so it can be shared, reloaded and read.

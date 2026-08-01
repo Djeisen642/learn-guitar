@@ -52,7 +52,7 @@ function buffer(c, freq) {
   // Excitation: a short burst of noise, one wavelength long.
   for (let i = 0; i < N; i++) data[i] = Math.random() * 2 - 1;
 
-  // Karplus-Strong: average each sample with its neighbour a wavelength back.
+  // Karplus-Strong: average each sample with its neighbor a wavelength back.
   const decay = 0.996;
   for (let i = N; i < data.length; i++) {
     data[i] = decay * 0.5 * (data[i - N] + data[i - N + 1]);

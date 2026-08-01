@@ -56,7 +56,7 @@ function progression(p) {
     h('a', {
       class: 'chip',
       href: `#/practice/drill/${p.keys[0].chords.join('-')}`,
-    }, 'Practise with the changer'),
+    }, 'Practice with the changer'),
   );
 }
 

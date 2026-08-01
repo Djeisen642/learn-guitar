@@ -27,7 +27,7 @@ export function targetsFor(chord, join = true) {
 }
 
 /**
- * Let one flattened finger cover two neighbouring strings — but only where a
+ * Let one flattened finger cover two neighboring strings — but only where a
  * real player would, which is rarer than it looks.
  *
  * Two dots side by side in the same fret is not on its own a reason to merge

@@ -29,7 +29,7 @@ const WIN_MS = 600;       // how long the board flashes after a clean chord
 const PRACTICE = ['Em', 'A', 'D', 'E', 'Am', 'Dm', 'G', 'C', 'A7', 'D7', 'E7', 'G7', 'Cadd9', 'Fmini', 'Dsus4'];
 
 export function FretboardView() {
-  // --- what is being practised ---------------------------------------------
+  // --- what is being practiced ---------------------------------------------
   let chordId = PRACTICE.find((id) => !store.bestForm(id)) || PRACTICE[0];
   let chord = CHORD_BY_ID[chordId];
   let song = null;         // a sequence to play through, or null for one chord
@@ -370,8 +370,8 @@ export function FretboardView() {
     joinBtn.classList.toggle('is-on', !solo);
     joinBtn.setAttribute('aria-pressed', String(!solo));
     joinBtn.title = solo
-      ? 'One finger per string, exactly as the chord is written. Tap to let neighbouring strings share a finger.'
-      : 'Neighbouring strings at the same fret share one flattened finger. Tap for one finger per string.';
+      ? 'One finger per string, exactly as the chord is written. Tap to let neighboring strings share a finger.'
+      : 'Neighboring strings at the same fret share one flattened finger. Tap for one finger per string.';
   }
   joinBtn.addEventListener('click', () => {
     store.setFlag('soloFingers', !store.getFlag('soloFingers'));

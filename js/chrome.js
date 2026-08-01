@@ -11,7 +11,7 @@ export function paintStreak() {
 }
 
 /**
- * Someone practised. Records the day and repaints the badge together, because
+ * Someone practiced. Records the day and repaints the badge together, because
  * doing one without the other leaves the header lying until the next route
  * change — which is exactly what the Play view used to do.
  */

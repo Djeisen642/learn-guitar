@@ -16,7 +16,7 @@ const browser = await chromium.launch(
 );
 
 const log = (s) => console.log(s);
-const suites = [['layout & behaviour', layout], ['fretboard', fretboard], ['caching', cache]];
+const suites = [['layout & behavior', layout], ['fretboard', fretboard], ['caching', cache]];
 let problems = [];
 
 for (const [name, suite] of suites) {

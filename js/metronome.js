@@ -3,7 +3,7 @@
 // Both used to carry their own copy of this loop, and both copies had the same
 // hole: stopping cleared the repeating timer but not the beats already handed
 // out, so for a moment after Stop the lights kept flashing and the chord
-// changer could still advance to the next chord. One implementation, cancelled
+// changer could still advance to the next chord. One implementation, canceled
 // properly, and neither view has to think about it.
 //
 // Why a look-ahead at all: setInterval is far too jittery to hear. Beats are
@@ -25,7 +25,7 @@ const LEAD_S = 0.2;        // silence before the first beat, so it isn't clipped
  * @param {(step:number, when:number)=>void} [opts.schedule]  audio-clock work
  *        (the click itself), given the exact time the beat sounds
  * @param {(step:number)=>void} [opts.show]  screen work, run at the moment the
- *        beat is heard and cancelled if the metronome stops first
+ *        beat is heard and canceled if the metronome stops first
  * @param {()=>void} [opts.onStop]  called after any stop, however it was caused
  */
 export function createMetronome({ seconds, schedule, show, onStop }) {
