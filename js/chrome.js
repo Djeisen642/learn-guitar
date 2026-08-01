@@ -2,6 +2,7 @@
 // rotation tip. Views own what's inside <main>; this owns the frame around it.
 
 import * as store from './store.js';
+import { buildInfo, buildLabel } from './version.js';
 
 export function paintStreak() {
   const n = store.streak();
@@ -31,6 +32,20 @@ export function setActiveTab(tab) {
 
 /** Play gives the fretboard the whole screen, header included. */
 export const setPlayMode = (on) => document.body.classList.toggle('play-mode', on);
+
+/**
+ * The build stamp under the last view. Painted once at startup and never
+ * repainted: it can only change by the worker swapping, and updates.js reloads
+ * the page when that happens.
+ */
+export async function paintBuild() {
+  const el = document.getElementById('build');
+  const label = buildLabel(await buildInfo());
+  el.textContent = label;
+  // Nothing to say on a first load before any worker exists, and an empty line
+  // reserving space under every page is worse than no line.
+  el.hidden = !label;
+}
 
 /**
  * The manifest asks for portrait, but that only binds an installed PWA on

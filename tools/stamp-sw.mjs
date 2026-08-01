@@ -10,6 +10,7 @@
 // is still no build step for local development.
 
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -55,21 +56,40 @@ export function version() {
   return { version: hash.digest('hex').slice(0, 12), files, missing };
 }
 
+/**
+ * The commit being deployed. GITHUB_SHA first because a shallow Actions
+ * checkout is the normal case; git for a local run; 'dev' when there is
+ * neither, which is what the copy in git says anyway.
+ */
+export function commit() {
+  if (process.env.GITHUB_SHA) return process.env.GITHUB_SHA.slice(0, 7);
+  try {
+    return execFileSync('git', ['rev-parse', '--short=7', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
+  } catch {
+    return 'dev';
+  }
+}
+
 export function stamp() {
   const sw = readFileSync(swPath, 'utf8');
   const { version: v, files, missing } = version();
   if (missing.length) throw new Error(`sw.js precaches files that don't exist: ${missing.join(', ')}`);
-  const next = sw.replace(/const CACHE = '[^']*';/, `const CACHE = 'chordgrip-${v}';`);
+  const build = commit();
+  // Both stamps go in one write. BUILD is not part of the hash — see sw.js —
+  // so the order of these two replacements doesn't matter.
+  const next = sw
+    .replace(/const CACHE = '[^']*';/, `const CACHE = 'chordgrip-${v}';`)
+    .replace(/const BUILD = '[^']*';/, `const BUILD = '${build}';`);
   if (next !== sw) writeFileSync(swPath, next);
-  return { version: v, count: files.length, changed: next !== sw };
+  return { version: v, build, count: files.length, changed: next !== sw };
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   try {
     const r = stamp();
     console.log(r.changed
-      ? `stamped cache chordgrip-${r.version} over ${r.count} files`
-      : `cache already stamped ${r.version}`);
+      ? `stamped cache chordgrip-${r.version} (build ${r.build}) over ${r.count} files`
+      : `cache already stamped ${r.version} (build ${r.build})`);
   } catch (err) {
     console.error(err.message);
     process.exit(1);

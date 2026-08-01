@@ -120,9 +120,17 @@ running the old app. So it isn't done by hand:
 - The fetch strategy is stale-while-revalidate: a cached response is served
   immediately and refreshed in the background, so even a missed stamp heals
   itself on the next load rather than persisting forever.
+- The same stamp writes the deployed commit into the worker, and the app prints
+  both under the last view: `build 4f2a91c · cache 79f2ff58961f`. The commit says
+  which source this came from, the cache name which copy of the bytes is being
+  served. Both moving means a deploy landed; the commit moving on its own means
+  that commit changed nothing shipped, which is the cache doing its job rather
+  than failing at it. The commit is kept out of the hash — it lives in `sw.js`,
+  which is excluded — so naming it can't invalidate a cache that is still good.
 - `npm test` checks that every shipped module is precached — adding a module and
-  forgetting to list it is a bug that only appears offline — and that every
-  precached file actually exists and serves.
+  forgetting to list it is a bug that only appears offline — that every precached
+  file actually exists and serves, and that after a deploy the line on screen
+  names the new build rather than the one it replaced.
 
 ## Deployment
 
@@ -152,6 +160,7 @@ js/wake.js        screen wake lock, and stopping when the user looks away
 js/metronome.js   look-ahead beat scheduler, shared by the two click-track views
 js/diagram.js     renders a chord as an inline SVG diagram
 js/updates.js     picking up a newly deployed version
+js/version.js     which build is running: commit and cache name
 
 js/fretboard.js   Play: what's drawn, what the touches mean, what the buttons do
 js/neck.js        the geometry behind it — no DOM, so it can be checked directly
