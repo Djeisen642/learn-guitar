@@ -16,14 +16,22 @@ dependencies, no accounts — just static files served by GitHub Pages.
   hand makes on the glass is the shape it makes on the instrument. Place every
   numbered finger on its target and the chord only sounds once the whole shape is
   genuinely held — one finger per position, pressed just behind the fret.
+
+  Fifteen chords to drill on their own, and eight songs to play through. Hold a
+  shape and the phone strums that chord's bar in the song's own rhythm before
+  moving on; while the bar plays, the next chord is outlined on the neck, and any
+  finger that doesn't move is tagged *stays*. You change by moving only the
+  fingers that differ, without taking your hand off the glass — which is what a
+  real change is. Bars can be slowed to 70% or half speed while a change is new.
 - **Practice**
   - *One-minute changes* — the JustinGuitar drill: pick two chords, swap for 60
     seconds, tap on each clean change. Personal bests are stored per chord pair.
   - *Chord changer* — a metronome that calls chords on the downbeat at your tempo,
     so you learn to change in time rather than whenever you happen to be ready.
   - *Strumming patterns* — four patterns with a click track and a moving down/up guide.
-- **Songs** — seven progressions (I–V–vi–IV, I–IV–V, 12-bar blues and friends) in
-  several keys, each playable and loadable into the chord changer.
+- **Songs** — seven chord *progressions* (I–V–vi–IV, I–IV–V, 12-bar blues and
+  friends), each in one to three keys, playable and loadable straight into the
+  chord changer. The named songs you play through a bar at a time live in **Play**.
 
 Chords are synthesized in the browser with Karplus–Strong plucked-string synthesis,
 so there are no audio files to download and the whole app works offline once loaded.
@@ -38,7 +46,13 @@ so there are no audio files to download and the whole app works offline once loa
 - Synthesized buffers are cached per pitch, so a six-string strum allocates nothing
   after the first time; everything runs through a limiter so stacked notes don't clip.
 - Tap targets are at least 44px, double-tap zoom is disabled on controls, and the
-  strum area claims its touches so the page can't scroll under your thumb.
+  fretboard claims its touches outright, so the page can't scroll out from under
+  the hand holding a shape on it.
+- Vibration marks each finger landing and again when the shape is complete, with
+  rapid pulses coalesced — they cancel each other otherwise, so three fingers
+  landing together felt like nothing. The control is always shown, because "I
+  feel nothing" has to be distinguishable from "this browser has no vibration
+  API", which is every iPhone.
 - Verified with no layout overflow from 320px up, plus landscape.
 - Asks the platform to lock to portrait where that's allowed (an installed PWA on
   Android), and since neither a browser tab nor iOS honors that, a phone held in
@@ -72,9 +86,22 @@ something actually broke:
 - **Fretboard geometry** — asserts frets and string spacing land within 0.5mm of
   a real 25.5" neck, that no chord's finger targets fall off the board, and that
   a phone too small to fit a real neck *says so* rather than quietly shrinking.
-- **Touch honesty** — a chord must sound for three fingers one-per-target, and
-  must stay silent for two fingers, for one broad touch straddling two targets,
-  and for the right shape on the wrong fret.
+  Also that every chord shows the fingering it is taught with: A as the
+  mini-barre, Em, Am and Dsus4 with separate fingers.
+- **Touch honesty** — the chord sounds only for one finger per target. Joined A
+  presents two spots: it sounds for two touches one-per-spot, and stays silent
+  one finger short, for a single broad touch straddling both, and for the right
+  shape on the wrong fret.
+- **Carrying fingers** — a song advances with no finger ever lifting off; the
+  ones that don't move are marked *stays*; a chord lasting two bars carries
+  through the bar line without a lift; leftover fingers that happen to cover the
+  next shape don't walk the song forward on their own; and carrying a chord over
+  a bar line doesn't record a falsely fast "best" time.
+- **Song timing** — checked as arithmetic rather than by listening: every strum
+  lands on the chord current at that beat, the pattern runs across mid-bar
+  changes, forming a shape strums a whole bar rather than striking once, and half
+  speed really does stretch the bar.
+- **Cache busting** — end to end; see below.
 
 Set `CHROMIUM_PATH` if Playwright's bundled browser isn't available.
 
@@ -86,9 +113,10 @@ The service worker's cache name is what invalidates it, and bumping it by hand i
 a step you only notice when you forget — the failure is silent, and people keep
 running the old app. So it isn't done by hand:
 
-- `tools/stamp-sw.mjs` hashes the shipped bytes and writes the result into the
-  cache name. The deploy workflow runs it, so every deploy that changes a file
-  changes the cache name. The value committed to git is only a placeholder.
+- `tools/stamp-sw.mjs` (`npm run stamp`) hashes the shipped bytes and writes the
+  result into the cache name. The deploy workflow runs it, so every deploy that
+  changes a file changes the cache name. The value committed to git is only a
+  placeholder — don't edit it by hand.
 - The fetch strategy is stale-while-revalidate: a cached response is served
   immediately and refreshed in the background, so even a missed stamp heals
   itself on the next load rather than persisting forever.
@@ -107,6 +135,7 @@ push to `main`. Enable it once under **Settings → Pages → Source → GitHub 
 index.html        app shell: header, view container, bottom tab bar, chord sheet
 styles.css        all styling; dark and light themes, safe-area aware
 sw.js             cache-first service worker for offline use
+CLAUDE.md         the conventions this code is kept to — read before changing it
 
 js/app.js         boot: wires the modules below together and renders once
 js/router.js      hash -> view, and the tab that goes with it
@@ -117,6 +146,7 @@ js/data.js        chord shapes, curriculum stages, progressions, songs, strums
 js/store.js       localStorage progress: learned chords, best scores, day streak
 js/notes.js       tuning, note names, fret -> pitch math
 js/audio.js       Karplus–Strong pluck synthesis and the metronome click
+js/haptics.js     vibration, and an honest answer about whether it works here
 js/dom.js         the element helper every view builds with
 js/wake.js        screen wake lock, and stopping when the user looks away
 js/metronome.js   look-ahead beat scheduler, shared by the two click-track views
@@ -129,13 +159,15 @@ js/shapes.js      a chord's frets and fingers -> one target per finger
 js/playback.js    playing a song in its own rhythm, and the practice tempo
 
 js/views/*.js     one file per screen, plus shared.js for the common pieces
+
+tests/            npm test: layout, fretboard and caching suites, and the server
+tools/            icon generation, and the service worker's cache stamp
 ```
 
 Chord data uses one convention throughout: `frets` and `fingers` run from the low E
 (6th string) to the high E (1st), with `-1` for muted and `0` for open.
 
-Two rules keep the wiring honest. A view never cleans up after itself on the way
-out — it registers cleanup with `lifecycle.js` and the router empties that before
-it renders anything. And one screen hands work to another through the URL, never
-through a module variable: the Songs tab's "practice with the changer" link is
-`#/practice/drill/G-D-Em-C`, so it can be shared, reloaded and read.
+The conventions the layout depends on — one responsibility per module, cleanup
+registered through `lifecycle.js`, screens handing work to each other through the
+URL rather than a shared variable — are written down in `CLAUDE.md`, along with
+the traps that aren't visible from the code.
