@@ -16,11 +16,16 @@ function audio() {
 
     // Strumming stacks six voices at once and re-strumming stacks more on top,
     // so everything goes through a limiter to stop the phone speaker clipping.
+    // A fast attack here squashed the strum's own transient — six tapered
+    // excitations landing within 150ms still add up to a peak the plain gain
+    // stage can't absorb — so the pump was audible as a dull "thud" then a
+    // rise back up rather than a clean pluck. Threshold and attack are eased
+    // off so it only catches the peak, not the whole envelope.
     const squash = ctx.createDynamicsCompressor();
-    squash.threshold.value = -12;
-    squash.knee.value = 12;
-    squash.ratio.value = 6;
-    squash.attack.value = 0.004;
+    squash.threshold.value = -18;
+    squash.knee.value = 14;
+    squash.ratio.value = 4;
+    squash.attack.value = 0.012;
     squash.release.value = 0.18;
 
     master = ctx.createGain();
@@ -64,8 +69,16 @@ function buffer(c, freq) {
   const buf = c.createBuffer(1, Math.ceil(c.sampleRate * RING_SECONDS), c.sampleRate);
   const data = buf.getChannelData(0);
 
-  // Excitation: a short burst of noise, one wavelength long.
-  for (let i = 0; i <= wavelength; i++) data[i] = Math.random() * 2 - 1;
+  // Excitation: a burst of noise, one wavelength long, shaped to taper at
+  // both ends instead of starting and stopping flat. A flat burst has a hard
+  // edge where it meets silence, and the delay line echoes that edge back
+  // every single period — audible as a buzzy click riding under the note.
+  // A real pluck's initial displacement tapers toward the nut and the
+  // bridge too, so the shape isn't just cosmetic.
+  for (let i = 0; i <= wavelength; i++) {
+    const taper = 0.5 * (1 - Math.cos((2 * Math.PI * i) / wavelength));
+    data[i] = (Math.random() * 2 - 1) * taper;
+  }
 
   // Karplus-Strong: average each sample with its neighbor a wavelength back,
   // then nudge the result through the allpass for the fractional remainder.
@@ -90,10 +103,16 @@ function pluck(c, freq, when, gain = 0.6) {
   const src = c.createBufferSource();
   src.buffer = buffer(c, freq);
 
-  // Roll off the fizz so it sounds like wood rather than a modem.
+  // Roll off the fizz so it sounds like wood rather than a modem. A single
+  // fixed cutoff treats a low E and a high E the same, but the low string
+  // has thirty-odd harmonics under 3200Hz to a treble string's ten — all of
+  // them let through at full brightness, which is what made dense low
+  // voicings (like C, with no open bass string to anchor them) sound like a
+  // pile of noise rather than a chord. Scaling the cutoff with the note
+  // keeps roughly the same harmonic count bright on every string.
   const tone = c.createBiquadFilter();
   tone.type = 'lowpass';
-  tone.frequency.value = 3200;
+  tone.frequency.value = Math.min(3200, Math.max(1100, freq * 9));
 
   const amp = c.createGain();
   amp.gain.setValueAtTime(0, when);
