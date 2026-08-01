@@ -14,7 +14,9 @@
     <path d="M136 200H376M136 272H376M136 344H376"/>
   </g>
   <rect x="130" y="122" width="252" height="16" rx="6" fill="#fff6ec"/>
-  <circle cx="184" cy="236" r="26" fill="#ffd23f"/>
-  <circle cx="232" cy="308" r="26" fill="#3fe1c4"/>
-  <circle cx="328" cy="236" r="26" fill="#ff4f81"/>
+  <g stroke="#fff6ec" stroke-width="4">
+    <circle cx="184" cy="236" r="26" fill="#ffd23f"/>
+    <circle cx="232" cy="308" r="26" fill="#3fe1c4"/>
+    <circle cx="328" cy="236" r="26" fill="#ff4f81"/>
+  </g>
 </svg>
