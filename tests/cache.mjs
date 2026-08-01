@@ -57,7 +57,12 @@ export async function run(browser, base, log) {
       ...listed.filter((n) => n.endsWith('.png') || n.endsWith('.svg'))]) {
       await cp(join(root, f), join(dir, f), { recursive: true });
     }
-    const stampIt = () => exec('node', [join(dir, 'tools/stamp-sw.mjs')]);
+    // Two different commits, so the build stamp on screen has to be the second
+    // one and not just any plausible-looking hash.
+    const SHAS = ['1111111aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', '2222222bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'];
+    let deploy = 0;
+    const stampIt = () => exec('node', [join(dir, 'tools/stamp-sw.mjs')],
+      { env: { ...process.env, GITHUB_SHA: SHAS[deploy++] } });
     const cacheName = async () => (await readFile(join(dir, 'sw.js'), 'utf8')).match(/const CACHE = '([^']*)'/)[1];
 
     await stampIt();
@@ -106,6 +111,16 @@ export async function run(browser, base, log) {
       }).catch(() => false);
       if (!live) fail('cache swapped but the page is still running the old code');
       else pass('the page ends up running the shipped change');
+
+      // The stamp on screen is how a deploy gets checked from a phone, so it
+      // has to name the build actually running — a line that shows anything at
+      // all is exactly as convincing as one that's stuck on the old value.
+      const shown = await page.evaluate(() => document.getElementById('build')?.textContent ?? '')
+        .catch(() => '');
+      const wantBuild = `build ${SHAS[1].slice(0, 7)}`;
+      const wantCache = `cache ${second.replace(/^chordgrip-/, '')}`;
+      if (shown.includes(wantBuild) && shown.includes(wantCache)) pass(`the page shows "${shown}"`);
+      else fail(`build stamp reads "${shown}", expected "${wantBuild} · ${wantCache}"`);
     }
 
     await ctx.close();

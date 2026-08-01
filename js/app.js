@@ -9,7 +9,7 @@
 // See README for the rest of the layout.
 
 import { unlockAudio } from './audio.js';
-import { initOrientationTip, paintStreak } from './chrome.js';
+import { initOrientationTip, paintBuild, paintStreak } from './chrome.js';
 import { render } from './router.js';
 import { registerServiceWorker } from './updates.js';
 
@@ -23,3 +23,6 @@ render();
 paintStreak();
 
 registerServiceWorker();
+// Shows nothing on a very first visit — there's no worker to ask yet — and the
+// line appears from the next load on. Not worth waiting on registration for.
+paintBuild();
