@@ -42,24 +42,46 @@ export function unlockAudio() {
 const buffers = new Map();
 
 function buffer(c, freq) {
-  const N = Math.max(2, Math.round(c.sampleRate / freq));
-  const cached = buffers.get(N);
+  // The wavelength in samples is essentially never a whole number, but the
+  // delay line can only hold whole samples. Rounding it off both strings goes
+  // sharp or flat by however much got rounded away — a few cents on the low
+  // strings, up to ten on the high ones where a wavelength is only ~130
+  // samples and half a sample is a much bigger fraction of it. Chords then
+  // beat against each other instead of sounding in tune. The two-sample
+  // average below already delays the signal by half a sample on its own, so
+  // what's left after removing that is tuned the rest of the way with a
+  // one-pole allpass, which shifts pitch without coloring the tone the way
+  // rounding the delay length would.
+  const period = c.sampleRate / freq;
+  const wavelength = Math.max(1, Math.floor(period - 0.5));
+  const frac = period - 0.5 - wavelength;
+  const allpass = (1 - frac) / (1 + frac);
+
+  const cacheKey = `${wavelength}:${frac.toFixed(4)}`;
+  const cached = buffers.get(cacheKey);
   if (cached) return cached;
 
   const buf = c.createBuffer(1, Math.ceil(c.sampleRate * RING_SECONDS), c.sampleRate);
   const data = buf.getChannelData(0);
 
   // Excitation: a short burst of noise, one wavelength long.
-  for (let i = 0; i < N; i++) data[i] = Math.random() * 2 - 1;
+  for (let i = 0; i <= wavelength; i++) data[i] = Math.random() * 2 - 1;
 
-  // Karplus-Strong: average each sample with its neighbor a wavelength back.
+  // Karplus-Strong: average each sample with its neighbor a wavelength back,
+  // then nudge the result through the allpass for the fractional remainder.
   const decay = 0.996;
-  for (let i = N; i < data.length; i++) {
-    data[i] = decay * 0.5 * (data[i - N] + data[i - N + 1]);
+  let allpassIn = 0;
+  let allpassOut = 0;
+  for (let i = wavelength + 1; i < data.length; i++) {
+    const avg = 0.5 * (data[i - wavelength] + data[i - wavelength - 1]);
+    const tuned = allpass * avg + allpassIn - allpass * allpassOut;
+    allpassIn = avg;
+    allpassOut = tuned;
+    data[i] = decay * tuned;
   }
 
   if (buffers.size > 72) buffers.clear();
-  buffers.set(N, buf);
+  buffers.set(cacheKey, buf);
   return buf;
 }
 
