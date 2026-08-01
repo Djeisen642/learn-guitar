@@ -5,168 +5,48 @@
 // sound once every finger is actually on its spot. Put the phone down, pick up
 // a guitar, and your hand has already made the shape.
 //
-// Geometry is computed in millimeters and converted to pixels ourselves. CSS
-// physical units are fiction on a phone (1mm is always 3.78px regardless of the
-// real display), so declaring `43mm` would produce a neck two thirds of life size.
+// This file is the view: what gets drawn, what the touches mean, what the
+// buttons do. The parts that can be reasoned about without a screen live
+// elsewhere — neck.js for the geometry, shapes.js for turning a chord into
+// finger targets, playback.js for the song timing.
 
-import { CHORD_BY_ID, SONGS, strumSchedule, stepStrums } from './data.js';
+import { CHORD_BY_ID, SONGS } from './data.js';
 import { strum, unlockAudio } from './audio.js';
+import { h, fill } from './dom.js';
+import { onLeave } from './lifecycle.js';
+import { notePractice } from './chrome.js';
+import {
+  FRETS, MARKER_PX, fitBoard, fretMM, pressMM, stringX, targetRect, matchTouches, sizePercent,
+} from './neck.js';
+import { targetsFor, targetLabel } from './shapes.js';
+import { createPlayback, cycleSpeed, speed, SPEED_LABEL } from './playback.js';
 import * as haptics from './haptics.js';
 import * as store from './store.js';
 
-const SCALE_MM = 647.7;   // 25.5" scale length, the Fender/Martin standard
-const STRING_MM = 7.3;    // string centers at the nut
-const EDGE_MM = 3.6;      // fretboard beyond the outer strings
-const FRETS = 3;          // every open chord lives inside frets 1-3
-
-// Phones cluster tightly around 6 CSS px per physical millimeter: an iPhone 12
-// is 6.04, a Pixel 7 6.24, a Galaxy S23 5.58. There's no API for real DPI, so
-// this is the honest average.
-const PX_PER_MM = 6.05;
-
-const MARKER_PX = 30;     // gap above the nut for the o / x row; matches .fb margin-top
-const SIDE_MIN_PX = 62;   // narrowest the column beside the neck may get
-
-// A real neck carries ~3.6mm of fretboard past the outer string, and your hand
-// wraps around it. A phone can't be wrapped around, so that margin is just
-// glass you have to reach across before the first string. The board is run off
-// the right edge instead and the surplus clipped, putting the outer string
-// almost against the rim — where a finger curling over the edge actually lands.
-// Physical millimeters, against the unscaled constant, since the phone's rim
-// doesn't shrink when the board does.
-const STRING_EDGE_MM = 1.5;
-const LAYOUT_GAP_PX = 12;   // page padding plus the gap to the side column
 const HOLD_MS = 260;      // shape must be held, not just brushed
-
-// Targets are rectangles, sized to the largest area that is still honest.
-//
-// Vertically that is the whole fret cell: on a real guitar the pitch is
-// identical anywhere between two fret wires — only tone and buzz change — so
-// every part of the cell is a genuinely correct answer.
-//
-// Horizontally it is the string lane, because pressing the wrong string is a
-// wrong note. That caps the width at the 7.3mm string spacing wherever a chord
-// puts fingers on neighboring strings, which is under the ~10mm that touch
-// research treats as the floor for reliable hits (fingertip contact is 8-14mm).
-// That gap is exactly why three-in-a-fret feels cramped on glass, and it isn't
-// something the app can design away without lying about the instrument. Where
-// no neighboring finger is in the way, the lane widens toward that 10mm.
-const LANE_MAX_MM = 10;
-const WIRE_INSET_MM = 1;  // keep the fret wires readable as edges
-const EDGE_FORGIVE_MM = 1.5;
-
-const FINGER_NAMES = ['', 'index', 'middle', 'ring', 'pinky'];
-
-const fretMM = (n) => SCALE_MM - SCALE_MM / Math.pow(2, n / 12);
-
-// Press just behind the fret wire — that's where a note rings cleanly, so the
-// targets sit there and the habit comes along for free.
-const pressMM = (n) => fretMM(n - 1) + (fretMM(n) - fretMM(n - 1)) * 0.72;
+const WIN_MS = 600;       // how long the board flashes after a clean chord
 
 const PRACTICE = ['Em', 'A', 'D', 'E', 'Am', 'Dm', 'G', 'C', 'A7', 'D7', 'E7', 'G7', 'Cadd9', 'Fmini', 'Dsus4'];
 
-function h(tag, props = {}, ...kids) {
-  const node = document.createElement(tag);
-  for (const [k, v] of Object.entries(props)) {
-    if (k === 'class') node.className = v;
-    else if (k.startsWith('on')) node.addEventListener(k.slice(2).toLowerCase(), v);
-    else if (v === true) node.setAttribute(k, '');
-    else if (v !== false && v != null) node.setAttribute(k, v);
-  }
-  for (const kid of kids.flat()) {
-    if (kid == null || kid === false) continue;
-    node.appendChild(typeof kid === 'string' ? document.createTextNode(kid) : kid);
-  }
-  return node;
-}
-
-/**
- * One target per finger, not per string: a finger barring three strings is a
- * single thing your hand does, so it's drawn and judged as one bar.
- */
-function targetsFor(chord, join = true) {
-  const groups = new Map();
-  chord.frets.forEach((fret, s) => {
-    if (fret <= 0) return;
-    const finger = chord.fingers?.[s] || 0;
-    const key = finger ? `f${finger}@${fret}` : `s${s}@${fret}`;
-    if (!groups.has(key)) groups.set(key, { fret, finger, strings: [] });
-    groups.get(key).strings.push(s);
-  });
-  const targets = [...groups.values()];
-  return join ? joinPairs(targets, chord) : targets;
-}
-
-/**
- * Let one flattened finger cover two neighboring strings — but only where a
- * real player would, which is rarer than it looks.
- *
- * Two dots side by side in the same fret is not on its own a reason to merge
- * them. Em, E and Am are always taught with two separate fingers; so are the
- * top two strings of Dsus4, where the whole trick is planting the ring and
- * pinky and leaving them there through the change. Merging those would teach a
- * fingering no one uses, on the instrument this is meant to transfer to.
- *
- * What is real is the mini-barre A — index flat across D and G, middle on B —
- * the standard answer to three fingers not fitting in one fret. So the pairs
- * come from the chord's own `join` list rather than from geometry, and a chord
- * earns an entry there by being played that way, not by being crowded.
- * Chords whose written fingering already bars (the easy F) arrive here as a
- * single target and pass straight through.
- */
-function joinPairs(targets, chord) {
-  const wanted = chord.join || [];
-  if (!wanted.length) return targets;
-
-  const single = new Map();                    // string -> its lone target
-  for (const t of targets) {
-    if (t.strings.length === 1) single.set(t.strings[0], t);
-  }
-
-  const joined = new Map();                    // target -> merged replacement
-  const absorbed = [];                         // fingers the joins made spare
-  for (const pair of wanted) {
-    const [lo, hi] = [...pair].sort((a, b) => a - b);
-    const lower = single.get(lo);
-    const upper = single.get(hi);
-    // The list is per chord, but a shape can arrive fingered differently; only
-    // merge when both strings really are stopped at the same fret, and never
-    // let one finger end up over three strings.
-    if (!lower || !upper || lower.fret !== upper.fret) continue;
-    if (joined.has(lower) || joined.has(upper)) continue;
-
-    joined.set(lower, {
-      fret: lower.fret,
-      finger: Math.min(lower.finger, upper.finger) || lower.finger,
-      strings: [lo, hi],
-      pair: true,
-    });
-    joined.set(upper, null);                   // absorbed
-    absorbed.push(upper.finger);
-  }
-
-  // A shape that used three fingers now uses two, so the ones above the finger
-  // that got absorbed shuffle down. Without this A reads "index ×2, ring" and
-  // asks you to skip a finger for no reason; the mini-barre is index and middle.
-  const renumber = (f) => (f ? f - absorbed.filter((a) => a < f).length : f);
-
-  return targets
-    .map((t) => (joined.has(t) ? joined.get(t) : t))
-    .filter(Boolean)
-    .map((t) => ({ ...t, finger: renumber(t.finger) }));
-}
-
-export function FretboardView(onLeave) {
+export function FretboardView() {
+  // --- what is being practiced ---------------------------------------------
   let chordId = PRACTICE.find((id) => !store.bestForm(id)) || PRACTICE[0];
   let chord = CHORD_BY_ID[chordId];
   let song = null;         // a sequence to play through, or null for one chord
   let step = 0;
   let cleared = false;     // just finished a song, showing the flourish
+
+  // --- how the shape is being held -----------------------------------------
   let targets = [];
-  let heldSince = 0;
   let armed = true;        // must let go before the next rep counts
   let startedAt = 0;       // when this attempt began, for the timing stat
   let holdTimer = null;
+  const active = new Map();
+
+  // --- how big the board came out ------------------------------------------
+  let ppm = 0;
+  let boardW = 0;
+  let boardH = 0;
 
   const board = h('div', { class: 'fb' });
   const stage = h('div', { class: 'fb-stage' }, board);
@@ -175,92 +55,30 @@ export function FretboardView(onLeave) {
   const pipsEl = h('div', { class: 'fb-pips' });
   const nextEl = h('div', { class: 'fb-next', hidden: true });
   const progressEl = h('div', { class: 'fb-progress', hidden: true });
+  const strip = h('div', { class: 'fb-strip' });
+  // Hearing it is the point of the timing data: the chords alone are the right
+  // sequence, but only the bar lengths make it the tune.
   const hearBtn = h('button', { class: 'fb-hear', type: 'button', hidden: true }, '▶ hear it');
-  hearBtn.addEventListener('click', playSong);
   const speedBtn = h('button', { class: 'fb-buzz fb-speed', type: 'button', hidden: true });
-  speedBtn.addEventListener('click', () => {
-    const next = SPEEDS[(SPEEDS.indexOf(speed()) + 1) % SPEEDS.length];
-    store.setSetting('tempo', next);
-    paintSpeed();
-    haptics.tick();
-    if (playTimers.length) playSong();     // re-time what's already playing
+  const buzzBtn = h('button', { type: 'button', class: 'fb-buzz' });
+  const joinBtn = h('button', { type: 'button', class: 'fb-buzz fb-join' });
+
+  const player = createPlayback({
+    onPlayingChange: (on) => hearBtn.classList.toggle('is-playing', on),
   });
+  onLeave(player.stop);
 
-  // --- scale to the phone in hand -----------------------------------------
-  let ppm = PX_PER_MM;
-  let boardH = 0;
-  let boardW = 0;
-
+  // --- drawing the neck ----------------------------------------------------
   function measure() {
     // MARKER_PX must match .fb's top margin, which is layout the board sits
     // below rather than inside.
-    const avail = stage
-      ? stage.getBoundingClientRect().height - MARKER_PX
-      : 600;
-    const trueH = fretMM(FRETS) * PX_PER_MM;
-
-    // Only the board up to the outer string takes layout width — everything
-    // past it runs off the screen and is clipped.
-    const toOuter = EDGE_MM + STRING_MM * 5;
-    const edgePx = STRING_EDGE_MM * PX_PER_MM;
-    const roomW = window.innerWidth - SIDE_MIN_PX - LAYOUT_GAP_PX;
-
-    ppm = Math.min(
-      PX_PER_MM,                                  // never larger than life
-      avail > 0 ? (avail / trueH) * PX_PER_MM : PX_PER_MM,
-      (roomW - edgePx) / toOuter,
-    );
-
-    boardH = Math.max(fretMM(FRETS) * ppm, Math.min(avail, fretMM(FRETS + 2) * ppm));
-    boardW = (STRING_MM * 5 + EDGE_MM * 2) * ppm;
-    // The stage is the visible slice; the board overflows it and gets cut off.
-    stage.style.width = `${(toOuter * ppm + edgePx).toFixed(1)}px`;
+    const avail = stage.getBoundingClientRect().height - MARKER_PX;
+    const fit = fitBoard(avail, window.innerWidth);
+    ({ ppm, boardW, boardH } = fit);
+    stage.style.width = `${fit.stageW.toFixed(1)}px`;
   }
 
-  const stringX = (s) => (EDGE_MM + s * STRING_MM) * ppm;
-
-  /**
-   * The largest rectangle that is still a correct answer: the full fret cell
-   * tall, and as wide as the string lane can grow before it would reach a
-   * neighboring finger in the same fret.
-   */
-  function rectFor(t) {
-    const half = (STRING_MM / 2) * ppm;
-    const inset = WIRE_INSET_MM * ppm;
-    const loX = stringX(Math.min(...t.strings));
-    const hiX = stringX(Math.max(...t.strings));
-
-    let x1 = loX - half;
-    let x2 = hiX + half;
-    const grow = ((LANE_MAX_MM - STRING_MM) / 2) * ppm;
-    let left = x1 - grow;
-    let right = x2 + grow;
-    for (const other of targets) {
-      // Only fingers sharing this fret compete: other frets are separate cells.
-      if (other === t || other.fret !== t.fret) continue;
-      const oLo = stringX(Math.min(...other.strings));
-      const oHi = stringX(Math.max(...other.strings));
-      if (oHi < loX) left = Math.max(left, (oHi + loX) / 2);
-      if (oLo > hiX) right = Math.min(right, (oLo + hiX) / 2);
-    }
-    x1 = Math.max(0, left);
-    x2 = Math.min(boardW, right);
-
-    const y1 = fretMM(t.fret - 1) * ppm + inset;
-    const y2 = fretMM(t.fret) * ppm - inset;
-    return { x1, x2, y1, y2, cx: (x1 + x2) / 2, cy: pressMM(t.fret) * ppm };
-  }
-
-  // --- drawing -------------------------------------------------------------
-  function paint() {
-    measure();
-    targets = targetsFor(chord, !store.getFlag('soloFingers'))
-      .map((t) => ({ ...t, covered: false, el: null }));
-
-    board.textContent = '';
-    board.style.width = `${boardW}px`;
-    board.style.height = `${boardH}px`;
-
+  function drawNeck() {
     board.appendChild(h('div', { class: 'fb-nut' }));
 
     // Draw every fret that fits, not just the three the chords use, so the neck
@@ -279,50 +97,58 @@ export function FretboardView(onLeave) {
         style: `top:${pressMM(n) * ppm}px; left:${boardW / 2}px`,
       }));
     }
-
     for (let s = 0; s < 6; s++) {
       board.appendChild(h('div', {
         class: 'fb-string',
-        style: `left:${stringX(s)}px; width:${Math.max(1.2, (1.1 - s * 0.13) * ppm * 0.9)}px`,
+        style: `left:${stringX(s, ppm)}px; width:${Math.max(1.2, (1.1 - s * 0.13) * ppm * 0.9)}px`,
       }));
     }
-
     // Open and muted strings are information, not something to press.
     chord.frets.forEach((fret, s) => {
       if (fret > 0) return;
       board.appendChild(h('div', {
         class: 'fb-mark' + (fret === 0 ? ' is-open' : ' is-mute'),
-        style: `left:${stringX(s)}px`,
+        style: `left:${stringX(s, ppm)}px`,
       }, fret === 0 ? '○' : '✕'));
     });
+  }
 
+  function drawTarget(t) {
+    const r = targetRect(t, targets, ppm, boardW);
+    const label = targetLabel(t);
+    // The whole cell counts, but the label sits at the sweet spot just behind
+    // the fret so the eye still learns where a note rings cleanest.
+    return h('div', {
+      class: 'fb-target' + (t.strings.length > 1 ? ' is-bar' : ''),
+      style: `left:${r.x1}px; top:${r.y1}px; width:${r.x2 - r.x1}px; height:${r.y2 - r.y1}px`,
+    },
+      h('span', { class: 'fb-target-label', style: `top:${r.cy - r.y1}px` },
+        h('span', { class: 'fb-target-num' }, t.finger ? String(t.finger) : '•'),
+        label ? h('span', { class: 'fb-target-name' }, label) : null,
+      ),
+    );
+  }
+
+  function paint() {
+    measure();
+    targets = targetsFor(chord, !store.getFlag('soloFingers'))
+      .map((t) => ({ ...t, covered: false, el: null, pip: null }));
+
+    board.textContent = '';
+    board.style.width = `${boardW}px`;
+    board.style.height = `${boardH}px`;
+    drawNeck();
     for (const t of targets) {
-      const r = rectFor(t);
-      // The whole cell counts, but the label sits at the sweet spot just behind
-      // the fret so the eye still learns where a note rings cleanest.
-      const el = h('div', {
-        class: 'fb-target' + (t.strings.length > 1 ? ' is-bar' : ''),
-        style: `left:${r.x1}px; top:${r.y1}px; width:${r.x2 - r.x1}px; height:${r.y2 - r.y1}px`,
-      },
-        h('span', { class: 'fb-target-label', style: `top:${r.cy - r.y1}px` },
-          h('span', { class: 'fb-target-num' }, t.finger ? String(t.finger) : '•'),
-          t.finger ? h('span', { class: 'fb-target-name' },
-            t.pair ? `${FINGER_NAMES[t.finger]} ×2`
-              : t.strings.length > 1 ? `${FINGER_NAMES[t.finger]} bar`
-                : FINGER_NAMES[t.finger]) : null,
-        ),
-      );
-      t.el = el;
-      board.appendChild(el);
+      t.el = drawTarget(t);
+      board.appendChild(t.el);
     }
 
     // Your hand covers the targets, so mirror their state above the neck where
     // you can actually see it.
-    pipsEl.textContent = '';
-    [...targets].sort((a, b) => a.finger - b.finger).forEach((t) => {
+    fill(pipsEl, [...targets].sort((a, b) => a.finger - b.finger).map((t) => {
       t.pip = h('span', { class: 'fb-pip' }, t.finger ? String(t.finger) : '•');
-      pipsEl.appendChild(t.pip);
-    });
+      return t.pip;
+    }));
 
     nameEl.textContent = chord.name;
     paintStat();
@@ -332,128 +158,78 @@ export function FretboardView(onLeave) {
     updateHeld([...active.values()]);
   }
 
-  // Hearing it is the point of the timing data: the chords alone are the right
-  // sequence, but only the bar lengths make it the tune.
-  let playTimers = [];
-  function stopPlayback() {
-    playTimers.forEach(clearTimeout);
-    playTimers = [];
-    hearBtn?.classList.remove('is-playing');
-  }
-  // "Start slow" is the oldest advice there is, and the only way a change gets
-  // clean: the bar has to last long enough for your hand to arrive.
-  const SPEEDS = [0.5, 0.7, 1];
-  const SPEED_LABEL = { 0.5: 'half speed', 0.7: '70% speed', 1: 'full speed' };
-  const speed = () => (SPEEDS.includes(store.getSetting('tempo')) ? store.getSetting('tempo') : 1);
-  const beatSeconds = () => 60 / ((song?.bpm || 90) * speed());
-
-  function paintSpeed() {
-    const s = speed();
-    speedBtn.textContent = SPEED_LABEL[s];
-    speedBtn.classList.toggle('is-on', s < 1);
-    speedBtn.title = s < 1
-      ? `Bars play at ${Math.round(s * 100)}% of ${song?.name || 'the song'}'s tempo, so there is time to move. Tap to speed up.`
-      : 'Bars play at the song\'s own tempo. Tap to slow it down while a change is still new.';
-  }
-
-  function playSong() {
-    stopPlayback();
-    if (!song) return;
-    unlockAudio();
-    hearBtn.classList.add('is-playing');
-    const secondsPerBeat = beatSeconds();
-    const schedule = strumSchedule(song);
-    for (const s of schedule) {
-      const c = CHORD_BY_ID[s.chord];
-      playTimers.push(setTimeout(() => strum(c, s.direction, s.velocity), s.beat * secondsPerBeat * 1000));
-    }
-    const total = song.beats.reduce((a, b) => a + b, 0);
-    playTimers.push(setTimeout(stopPlayback, total * secondsPerBeat * 1000));
-  }
-  onLeave(stopPlayback);
-
+  // --- the side column -----------------------------------------------------
   function paintStat() {
-    const scale = Math.round((ppm / PX_PER_MM) * 100);
+    const scale = sizePercent(ppm);
     const size = scale >= 99 ? 'life size' : `${scale}% size`;
     statEl.title = scale >= 99
       ? 'Shown at the size of a real 25.5" neck'
       : `This screen is too small for a real neck, so it is shown at ${scale}%`;
 
-    if (song) {
-      statEl.textContent = cleared
-        ? `${song.name} — all ${song.chords.length}!`
-        : `${song.name} · ${step + 1}/${song.chords.length}`;
-      const next = song.chords[(step + 1) % song.chords.length];
-      nextEl.textContent = `next ${CHORD_BY_ID[next]?.name || next}`;
-      nextEl.hidden = false;
-      hearBtn.hidden = false;
-      speedBtn.hidden = false;
-      paintSpeed();
-      // Segments are sized by how long each chord lasts, so the bar doubles as
-      // a picture of the rhythm rather than implying every change is equal.
-      progressEl.textContent = '';
-      song.chords.forEach((_, i) => progressEl.appendChild(h('i', {
-        class: i < step ? 'is-done' : i === step ? 'is-now' : '',
-        style: `flex:${song.beats?.[i] || 1}`,
-      })));
-      progressEl.hidden = false;
+    for (const el of [nextEl, progressEl, hearBtn, speedBtn]) el.hidden = !song;
+
+    if (!song) {
+      const best = store.bestForm(chord.id);
+      // The side column is narrow, so keep this to one short line.
+      statEl.textContent = best ? `${size} · ${(best / 1000).toFixed(1)}s best` : size;
+      player.stop();     // a lone chord rings once; there is no tempo
       return;
     }
 
-    const best = store.bestForm(chord.id);
-    // The side column is narrow, so keep this to one short line.
-    statEl.textContent = best ? `${size} · ${(best / 1000).toFixed(1)}s best` : size;
-    nextEl.hidden = true;
-    progressEl.hidden = true;
-    hearBtn.hidden = true;
-    speedBtn.hidden = true;    // a lone chord rings once; there is no tempo
-    stopPlayback();
+    statEl.textContent = cleared
+      ? `${song.name} — all ${song.chords.length}!`
+      : `${song.name} · ${step + 1}/${song.chords.length}`;
+    const next = song.chords[(step + 1) % song.chords.length];
+    nextEl.textContent = `next ${CHORD_BY_ID[next]?.name || next}`;
+    paintSpeed();
+    // Segments are sized by how long each chord lasts, so the bar doubles as a
+    // picture of the rhythm rather than implying every change is equal.
+    fill(progressEl, song.chords.map((_, i) => h('i', {
+      class: i < step ? 'is-done' : i === step ? 'is-now' : '',
+      style: `flex:${song.beats?.[i] || 1}`,
+    })));
+  }
+
+  function paintList() {
+    fill(strip,
+      h('p', { class: 'fb-listhead' }, 'Songs'),
+      SONGS.map((s) => h('button', {
+        type: 'button',
+        class: 'fb-pick is-song' + (song?.id === s.id ? ' is-on' : ''),
+        title: s.note,
+        onclick: () => select({ song: s }),
+      }, s.name)),
+      h('p', { class: 'fb-listhead' }, 'Chords'),
+      PRACTICE.map((id) => CHORD_BY_ID[id]).filter(Boolean).map((c) => h('button', {
+        type: 'button',
+        class: 'fb-pick' + (!song && c.id === chordId ? ' is-on' : ''),
+        onclick: () => select({ chordId: c.id }),
+      }, c.name)),
+    );
+  }
+
+  /** Switch to a song or a single chord. One path, so neither can half-reset. */
+  function select({ song: nextSong = null, chordId: nextChord = null }) {
+    player.stop();
+    song = nextSong;
+    chordId = nextSong ? null : nextChord;
+    chord = CHORD_BY_ID[nextSong ? nextSong.chords[0] : nextChord];
+    step = 0;
+    cleared = false;
+    armed = true;
+    startedAt = Date.now();
+    paint();
+    paintList();
   }
 
   // --- touch ---------------------------------------------------------------
-  const active = new Map();
-
-  function pointsIn(e) {
+  const pointIn = (e) => {
     const r = board.getBoundingClientRect();
     return { x: e.clientX - r.left, y: e.clientY - r.top };
-  }
-
-  /**
-   * Distance from a touch to a target's center, or null if the touch is outside
-   * the drawn rectangle. Hit area and drawing come from the same rect, so
-   * nothing is secretly bigger or smaller than it looks.
-   */
-  function reach(t, p) {
-    const r = rectFor(t);
-    const m = EDGE_FORGIVE_MM * ppm;
-    if (p.x < r.x1 - m || p.x > r.x2 + m || p.y < r.y1 - m || p.y > r.y2 + m) return null;
-    return Math.hypot(p.x - r.cx, p.y - r.cy);
-  }
-
-  /**
-   * Match touches to targets one-to-one, closest pair first. Adjacent targets
-   * are only ~7mm apart, so without this a single broad touch would satisfy two
-   * positions at once and hand out a clean chord for a sloppy shape.
-   */
-  function matched(points) {
-    const pairs = [];
-    targets.forEach((t, ti) => points.forEach((p, pi) => {
-      const d = reach(t, p);
-      if (d != null) pairs.push({ ti, pi, d });
-    }));
-    pairs.sort((a, b) => a.d - b.d);
-    const takenTarget = new Set();
-    const takenTouch = new Set();
-    for (const { ti, pi } of pairs) {
-      if (takenTarget.has(ti) || takenTouch.has(pi)) continue;
-      takenTarget.add(ti);
-      takenTouch.add(pi);
-    }
-    return takenTarget;
-  }
+  };
 
   function updateHeld(points) {
-    const hit = matched(points);
+    const hit = matchTouches(targets, points, ppm, boardW);
     let all = targets.length > 0;
     targets.forEach((t, i) => {
       const on = hit.has(i);
@@ -468,63 +244,46 @@ export function FretboardView(onLeave) {
     board.classList.toggle('is-formed', all);
 
     if (all && armed) {
-      if (!heldSince) {
-        heldSince = Date.now();
-        holdTimer = setTimeout(succeed, HOLD_MS);
-      }
-    } else {
-      heldSince = 0;
-      clearTimeout(holdTimer);
-      if (!points.length) armed = true;
+      if (!holdTimer) holdTimer = setTimeout(succeed, HOLD_MS);
+      return;
     }
+    clearTimeout(holdTimer);
+    holdTimer = null;
+    if (!points.length) armed = true;
   }
 
+  const sync = () => updateHeld([...active.values()]);
+
   function succeed() {
+    holdTimer = null;
     armed = false;
     const ms = Date.now() - startedAt;
     const isBest = store.recordForm(chord.id, ms);
-    store.touchStreak();
+    notePractice();
     unlockAudio();
     haptics.chord();
-    if (!song) strum(chord);            // a lone chord just rings once
     board.classList.add('is-win');
-    setTimeout(() => board.classList.remove('is-win'), 600);
+    setTimeout(() => board.classList.remove('is-win'), WIN_MS);
 
-    if (song) {
-      // Cancel anything still sounding first. Lifting off mid-bar re-arms the
-      // detector, so re-pressing used to lay a second bar over the first and
-      // queue a second advance with it.
-      stopPlayback();
-
-      // You fret, the phone strums: hold the shape and it plays that chord's
-      // bar in the song's own rhythm, then moves on. A single strike told you
-      // the shape was right but never sounded like the song.
-      const secondsPerBeat = beatSeconds();
-      const here = step;
-      for (const s of stepStrums(song, here)) {
-        playTimers.push(setTimeout(() => strum(chord, s.direction, s.velocity), s.offset * secondsPerBeat * 1000));
-      }
-      const barMs = song.beats[here] * secondsPerBeat * 1000;
-      playTimers.push(setTimeout(() => {
-        cleared = here + 1 >= song.chords.length;
-        step = cleared ? 0 : here + 1;
-        if (cleared) haptics.finished();
-        chord = CHORD_BY_ID[song.chords[step]];
-        startedAt = Date.now();
-        paint();
-        paintList();
-      }, barMs));
+    if (!song) {
+      strum(chord);                      // a lone chord just rings once
+      statEl.textContent = isBest
+        ? `clean in ${(ms / 1000).toFixed(1)}s — best yet`
+        : `clean in ${(ms / 1000).toFixed(1)}s`;
+      startedAt = Date.now();
       return;
     }
 
-    statEl.textContent = isBest
-      ? `clean in ${(ms / 1000).toFixed(1)}s — best yet`
-      : `clean in ${(ms / 1000).toFixed(1)}s`;
-    startedAt = Date.now();
-  }
-
-  function sync() {
-    updateHeld([...active.values()]);
+    const here = step;
+    player.playBar(song, here, chord, () => {
+      cleared = here + 1 >= song.chords.length;
+      step = cleared ? 0 : here + 1;
+      if (cleared) haptics.finished();
+      chord = CHORD_BY_ID[song.chords[step]];
+      startedAt = Date.now();
+      paint();
+      paintList();
+    });
   }
 
   board.addEventListener('pointerdown', (e) => {
@@ -536,71 +295,93 @@ export function FretboardView(onLeave) {
     if (cleared && active.size === 0) { cleared = false; paintStat(); }
     if (!startedAt) startedAt = Date.now();
     board.setPointerCapture(e.pointerId);
-    active.set(e.pointerId, pointsIn(e));
+    active.set(e.pointerId, pointIn(e));
     sync();
   });
   board.addEventListener('pointermove', (e) => {
     if (!active.has(e.pointerId)) return;
-    active.set(e.pointerId, pointsIn(e));
+    active.set(e.pointerId, pointIn(e));
     sync();
   });
-  const lift = (e) => {
-    if (!active.delete(e.pointerId)) return;
-    sync();
-  };
+  const lift = (e) => { if (active.delete(e.pointerId)) sync(); };
   board.addEventListener('pointerup', lift);
   board.addEventListener('pointercancel', lift);
   onLeave(() => { clearTimeout(holdTimer); active.clear(); });
 
-  // --- side list: songs to play through, then single chords -----------------
-  const strip = h('div', { class: 'fb-strip' });
+  // --- buttons in the side column ------------------------------------------
+  hearBtn.addEventListener('click', () => player.playSong(song));
 
-  function selectSong(s) {
-    stopPlayback();
-    song = s;
-    step = 0;
-    cleared = false;
-    chord = CHORD_BY_ID[s.chords[0]];
-    startedAt = Date.now();
-    armed = true;
+  function paintSpeed() {
+    const s = speed();
+    speedBtn.textContent = SPEED_LABEL[s];
+    speedBtn.classList.toggle('is-on', s < 1);
+    speedBtn.title = s < 1
+      ? `Bars play at ${Math.round(s * 100)}% of ${song?.name || 'the song'}'s tempo, so there is time to move. Tap to speed up.`
+      : 'Bars play at the song\'s own tempo. Tap to slow it down while a change is still new.';
+  }
+  speedBtn.addEventListener('click', () => {
+    cycleSpeed();
+    paintSpeed();
+    haptics.tick();
+    if (player.isPlayingSong()) player.playSong(song);   // re-time what's playing
+  });
+
+  // Always rendered, never silently absent: "I feel nothing" needs to be
+  // distinguishable from "this phone has no vibration" and from "my fingers
+  // aren't landing on the targets", and tapping it buzzes hard enough to tell.
+  const BUZZ_LABEL = {
+    on: 'buzz on', off: 'buzz off',
+    unsupported: 'no buzz here', refused: 'buzz blocked',
+  };
+  const BUZZ_TITLE = {
+    unsupported: 'This browser has no vibration API — Safari has never shipped one',
+    refused: 'The phone refused to vibrate. Check touch feedback in its sound settings.',
+  };
+  function paintBuzz() {
+    const state = haptics.support();
+    buzzBtn.textContent = BUZZ_LABEL[state];
+    buzzBtn.classList.toggle('is-on', state === 'on');
+    buzzBtn.classList.toggle('is-warn', state === 'refused' || state === 'unsupported');
+    buzzBtn.setAttribute('aria-pressed', String(state === 'on'));
+    buzzBtn.title = BUZZ_TITLE[state] || 'Tap to test the vibration on this phone';
+  }
+  buzzBtn.addEventListener('click', () => {
+    if (haptics.support() === 'unsupported') return;
+    // Tapping while on is a test, not an off switch — you need to be able to
+    // check it works without losing the setting.
+    if (haptics.isEnabled()) haptics.test();
+    else haptics.setEnabled(true);
+    paintBuzz();
+  });
+  // Long-press turns it off, so a quiet room is still possible.
+  buzzBtn.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    haptics.setEnabled(false);
+    paintBuzz();
+  });
+
+  // Sharing a finger between two strings is a real technique, but it isn't the
+  // fingering the chord is written with — so it's a choice, not a rule. Joined
+  // is the default because that's what fits on glass; turn it off to drill the
+  // shape exactly as a teacher would write it.
+  function paintJoin() {
+    const solo = store.getFlag('soloFingers');
+    joinBtn.textContent = solo ? 'one each' : 'join ×2';
+    joinBtn.classList.toggle('is-on', !solo);
+    joinBtn.setAttribute('aria-pressed', String(!solo));
+    joinBtn.title = solo
+      ? 'One finger per string, exactly as the chord is written. Tap to let neighboring strings share a finger.'
+      : 'Neighboring strings at the same fret share one flattened finger. Tap for one finger per string.';
+  }
+  joinBtn.addEventListener('click', () => {
+    store.setFlag('soloFingers', !store.getFlag('soloFingers'));
+    paintJoin();
     paint();
-    paintList();
-  }
+    haptics.tick();
+  });
 
-  function selectChord(id) {
-    stopPlayback();
-    song = null;
-    cleared = false;
-    chordId = id;
-    chord = CHORD_BY_ID[id];
-    startedAt = Date.now();
-    armed = true;
-    paint();
-    paintList();
-  }
-
-  function paintList() {
-    strip.textContent = '';
-    strip.appendChild(h('p', { class: 'fb-listhead' }, 'Songs'));
-    SONGS.forEach((s) => {
-      strip.appendChild(h('button', {
-        type: 'button',
-        class: 'fb-pick is-song' + (song?.id === s.id ? ' is-on' : ''),
-        title: s.note,
-        onclick: () => selectSong(s),
-      }, s.name));
-    });
-    strip.appendChild(h('p', { class: 'fb-listhead' }, 'Chords'));
-    PRACTICE.forEach((id) => {
-      const c = CHORD_BY_ID[id];
-      if (!c) return;
-      strip.appendChild(h('button', {
-        type: 'button',
-        class: 'fb-pick' + (!song && id === chordId ? ' is-on' : ''),
-        onclick: () => selectChord(id),
-      }, c.name));
-    });
-  }
+  paintBuzz();
+  paintJoin();
   paintList();
 
   // Measuring once is not enough: filling in the finger pips grows the header,
@@ -619,69 +400,6 @@ export function FretboardView(onLeave) {
   onLeave(() => ro.disconnect());
 
   requestAnimationFrame(paint);
-
-  // Always rendered, never silently absent: "I feel nothing" needs to be
-  // distinguishable from "this phone has no vibration" and from "my fingers
-  // aren't landing on the targets", and tapping it buzzes hard enough to tell.
-  const BUZZ_LABEL = {
-    on: 'buzz on', off: 'buzz off',
-    unsupported: 'no buzz here', refused: 'buzz blocked',
-  };
-  const buzzBtn = h('button', {
-    type: 'button',
-    class: 'fb-buzz',
-    title: 'Tap to test the vibration on this phone',
-  }, BUZZ_LABEL[haptics.support()]);
-
-  function paintBuzz() {
-    const state = haptics.support();
-    buzzBtn.textContent = BUZZ_LABEL[state];
-    buzzBtn.classList.toggle('is-on', state === 'on');
-    buzzBtn.classList.toggle('is-warn', state === 'refused' || state === 'unsupported');
-    buzzBtn.setAttribute('aria-pressed', String(state === 'on'));
-    buzzBtn.title = state === 'unsupported'
-      ? 'This browser has no vibration API — Safari has never shipped one'
-      : state === 'refused'
-        ? 'The phone refused to vibrate. Check touch feedback in its sound settings.'
-        : 'Tap to test the vibration on this phone';
-  }
-  buzzBtn.addEventListener('click', () => {
-    if (haptics.support() === 'unsupported') return;
-    // Tapping while on is a test, not an off switch — you need to be able to
-    // check it works without losing the setting.
-    if (haptics.isEnabled()) haptics.test();
-    else haptics.setEnabled(true);
-    paintBuzz();
-  });
-  // Long-press turns it off, so a quiet room is still possible.
-  buzzBtn.addEventListener('contextmenu', (e) => {
-    e.preventDefault();
-    haptics.setEnabled(false);
-    paintBuzz();
-  });
-  paintBuzz();
-
-  // Sharing a finger between two strings is a real technique, but it isn't the
-  // fingering the chord is written with — so it's a choice, not a rule. Joined
-  // is the default because that's what fits on glass; turn it off to drill the
-  // shape exactly as a teacher would write it.
-  const joinBtn = h('button', { type: 'button', class: 'fb-buzz fb-join' });
-  function paintJoin() {
-    const solo = store.getFlag('soloFingers');
-    joinBtn.textContent = solo ? 'one each' : 'join ×2';
-    joinBtn.classList.toggle('is-on', !solo);
-    joinBtn.setAttribute('aria-pressed', String(!solo));
-    joinBtn.title = solo
-      ? 'One finger per string, exactly as the chord is written. Tap to let neighboring strings share a finger.'
-      : 'Neighboring strings at the same fret share one flattened finger. Tap for one finger per string.';
-  }
-  joinBtn.addEventListener('click', () => {
-    store.setFlag('soloFingers', !store.getFlag('soloFingers'));
-    paintJoin();
-    paint();
-    haptics.tick();
-  });
-  paintJoin();
 
   return h('div', { class: 'fb-page' },
     stage,
