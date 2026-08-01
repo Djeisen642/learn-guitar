@@ -378,12 +378,17 @@ export const SONGS = [
     note: 'Not a song — three easy shapes in a loop, to get the hand moving.',
   },
   {
-    id: 'grace', name: 'Amazing Grace', chords: ['C', 'Fmini', 'C', 'G7', 'C', 'Fmini', 'C', 'G7', 'C'],
-    meter: 3, bpm: 92, beats: [3, 3, 6, 12, 3, 3, 6, 6, 6],
+    // Every change here is a bar later than it first looks, because the tune
+    // starts on a pickup beat: "A-" is the last beat of the bar before bar 1.
+    // Read off the lyric instead of the bar count and the F lands on "grace"
+    // and the V7 under "saved a wretch" — both a bar early, both sung against
+    // the chord rather than on it, which is what made the playback sour.
+    id: 'grace', name: 'Amazing Grace', chords: ['C', 'Fmini', 'C', 'G7', 'C', 'Fmini', 'C', 'Am', 'G7', 'C'],
+    meter: 3, bpm: 92, beats: [6, 3, 9, 6, 6, 3, 3, 3, 3, 6],
     note: 'The whole verse, 16 bars of 3/4. Written in E on the sheet this came '
       + 'from and taken down to C, which sits lower and is easier to sing. The IV '
-      + 'lands on "grace" and the V7 carries the second line; F is the easy '
-      + 'four-string one.',
+      + 'lands on "sweet", the V7 on "like me", and the vi under "was blind"; F is '
+      + 'the easy four-string one.',
   },
   {
     id: 'heaven', name: "Heaven's Door", chords: ['G', 'D', 'Am', 'G', 'D', 'C'],
