@@ -454,6 +454,7 @@ body.play-mode .topbar { display: none; }
    toward the fret, where the note actually rings cleanest. */
 .fb-target {
   position: absolute;
+  z-index: 2;                     /* above the next-chord outlines */
   border-radius: 7px;
   border: 2px dashed rgba(255, 255, 255, .45);
   background: linear-gradient(180deg, rgba(224, 145, 47, .10), rgba(224, 145, 47, .34));
@@ -476,6 +477,32 @@ body.play-mode .topbar { display: none; }
   background: var(--accent);
   border: 2px solid #fff;
   color: #17130d;
+}
+
+/* Where the next chord is going: drawn behind the live targets, never
+   touchable — it is a thing to read, not to press. */
+.fb-ghost {
+  position: absolute;
+  z-index: 1;
+  border-radius: 7px;
+  border: 1.5px dotted rgba(255, 255, 255, .3);
+  pointer-events: none;
+}
+.fb-ghost-label {
+  position: absolute; left: 0; right: 0;
+  transform: translateY(-50%);
+  text-align: center;
+  font-size: 10px; font-weight: 700; line-height: 1;
+  color: rgba(255, 255, 255, .45);
+}
+/* This finger is in the next chord too, on the same string and fret: leave it
+   exactly where it is. */
+.fb-stay-tag {
+  margin-top: 3px;
+  font-size: 9px; font-weight: 700; line-height: 1; letter-spacing: .06em;
+  text-transform: uppercase;
+  padding: 2px 5px; border-radius: 999px;
+  background: rgba(0, 0, 0, .32); color: #fff;
 }
 
 .fb.is-formed .fb-target { background: var(--good); border-color: #fff; color: #fff; }
