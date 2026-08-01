@@ -1,15 +1,22 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Chordgrip">
-  <rect width="512" height="512" rx="112" fill="#12100e"/>
-  <g stroke="#4a423b" stroke-width="6">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ff8a3d"/>
+      <stop offset="0.55" stop-color="#ee4d8b"/>
+      <stop offset="1" stop-color="#7b3ff2"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <g stroke="#fff6ec" stroke-opacity="0.55" stroke-width="6" stroke-linecap="round">
     <path d="M136 128V400M184 128V400M232 128V400M280 128V400M328 128V400M376 128V400"/>
   </g>
-  <g stroke="#4a423b" stroke-width="6">
+  <g stroke="#fff6ec" stroke-opacity="0.75" stroke-width="7" stroke-linecap="round">
     <path d="M136 200H376M136 272H376M136 344H376"/>
   </g>
-  <rect x="130" y="122" width="252" height="16" rx="6" fill="#f2ede7"/>
-  <g fill="#e0912f">
-    <circle cx="184" cy="236" r="26"/>
-    <circle cx="232" cy="308" r="26"/>
-    <circle cx="328" cy="236" r="26"/>
+  <rect x="130" y="122" width="252" height="16" rx="6" fill="#fff6ec"/>
+  <g stroke="#fff6ec" stroke-width="4">
+    <circle cx="184" cy="236" r="26" fill="#ffd23f"/>
+    <circle cx="232" cy="308" r="26" fill="#3fe1c4"/>
+    <circle cx="328" cy="236" r="26" fill="#ff4f81"/>
   </g>
 </svg>
