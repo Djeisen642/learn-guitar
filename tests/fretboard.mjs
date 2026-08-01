@@ -337,6 +337,38 @@ export async function run(browser, base, log) {
     else pass(`song advances ${seen.join(' → ')} and reports "${stat}"`);
     // The loop above already lifted off; no reset needed here.
 
+    // A real change keeps whatever fingers are already in the right place, so
+    // the song has to move on without the hand ever coming off the glass. It
+    // used to demand every finger lift before the next chord would count.
+    const grabSpots = async () => page.evaluate(() => [...document.querySelectorAll('.fb-target')].map((t) => {
+      const r = t.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    }));
+    await page.locator('.fb-pick.is-song', { hasText: 'Horse' }).first().click();
+    await page.waitForTimeout(350);
+    const held = await grabSpots();
+    const first = await page.locator('.fb-chord').textContent();
+    await touch('touchStart', held);
+    await page.waitForTimeout(2600);           // the bar plays out and moves on
+    const second = await page.locator('.fb-chord').textContent();
+    // Add the next chord's fingers to the ones still down — never a touchEnd.
+    const both = held.concat(await grabSpots());
+    await touch('touchMove', both);
+    await page.waitForTimeout(3000);           // hold, then its bar plays out too
+    const third = await page.locator('.fb-chord').textContent();
+    // Those same fingers happen to cover the whole of the chord it just moved
+    // to, but the ones the last chord needed are still down, so nothing is
+    // sounding it. Standing still must not walk the song forwards.
+    await page.waitForTimeout(1600);
+    const idle = await page.locator('.fb-chord').textContent();
+    await touch('touchEnd', []);
+    await page.waitForTimeout(350);
+    if (second === first) fail(`song did not reach a second chord (stuck on ${first})`);
+    else if (third === second) fail(`${second} → ${third}: the next chord needs the fingers lifted first`);
+    else pass(`the song moves ${first} → ${second} → ${third} without lifting off`);
+    if (idle !== third) fail(`leftover fingers walked the song on by themselves (${third} → ${idle})`);
+    else pass(`leftover fingers covering the next shape do not advance it (held on ${idle})`);
+
     // Lifting off mid-bar re-arms the detector. Re-pressing used to lay a
     // second bar of strumming over the first and queue a second advance with
     // it, so the song jumped two chords and the sound doubled.
@@ -360,6 +392,28 @@ export async function run(browser, base, log) {
     const moved = stepOf(after) - stepOf(before);
     if (moved > 1) fail(`re-pressing mid-bar advanced ${moved} chords at once ("${before}" → "${after}")`);
     else pass(`re-pressing mid-bar restarts the bar rather than doubling it ("${before}" → "${after}")`);
+
+    // While a bar plays, the next chord must be visible to aim at, with the
+    // fingers that do not move at all marked so they don't get lifted and put
+    // straight back. Rising Sun opens Am → C, where the index and middle stay
+    // exactly where they are and only the ring finger moves.
+    await page.locator('.fb-pick.is-song', { hasText: 'Rising' }).first().click();
+    await page.waitForTimeout(300);
+    const ghostsBefore = await page.locator('.fb-ghost').count();
+    await touch('touchStart', await grab());
+    await page.waitForTimeout(700);            // inside the bar
+    const ahead = await page.evaluate(() => ({
+      moves: [...document.querySelectorAll('.fb-ghost .fb-ghost-label')].map((g) => g.textContent),
+      stays: [...document.querySelectorAll('.fb-target.is-stays .fb-target-name')].map((n) => n.textContent).sort(),
+      tags: document.querySelectorAll('.fb-stay-tag').length,
+    }));
+    await touch('touchEnd', []);
+    await page.waitForTimeout(300);
+    if (ghostsBefore) fail(`${ghostsBefore} next-chord outlines showing before a bar has started`);
+    else if (ahead.moves.length !== 1) fail(`only C's ring finger moves from Am, but ${ahead.moves.length} spots are outlined ahead`);
+    else if (ahead.stays.join(' + ') !== 'index + middle') fail(`the index and middle hold still through Am → C, got "${ahead.stays.join(' + ')}"`);
+    else if (ahead.tags !== 2) fail(`${ahead.tags} "stays" tags for 2 fingers that stay`);
+    else pass(`the bar marks ${ahead.stays.join(' and ')} as staying and outlines the ${ahead.moves} that moves`);
 
     // Slowing down has to actually give the hand more time: the bar must last
     // longer before the song moves on, not just sound slower.
@@ -425,6 +479,56 @@ export async function run(browser, base, log) {
     const made = await page.evaluate(() => window.__made);
     if (made > 8) fail(`audio buffer cache not working: ${made} allocations for 4 chords`);
     else pass(`4 chords allocated ${made} audio buffers (cache holding)`);
+
+    await page.close();
+  }
+
+  // --- a song that holds one chord over two bars -----------------------------
+  // No shipped song writes the same chord twice in a row — they use a longer
+  // bar count instead — so serve one that does rather than bend the songs to
+  // suit the test. Nobody lifts a hand between two bars of the same chord.
+  {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+    page.on('pageerror', (e) => fail(`pageerror: ${e.message}`));
+    await page.route('**/js/data.js', async (route) => {
+      const body = (await (await route.fetch()).text())
+        .replace(/chords: \['Em', 'A', 'Em', 'D'\]/, "chords: ['Em', 'Em', 'D', 'D']");
+      await route.fulfill({ body, contentType: 'text/javascript' });
+    });
+    await page.goto(`${base}#/play`, { waitUntil: 'networkidle' });
+    await page.waitForTimeout(600);
+    await page.locator('.fb-pick.is-song', { hasText: 'Warm-up' }).first().click();
+    await page.waitForTimeout(300);
+
+    const seq = await page.locator('.fb-stat').textContent();
+    if (!/Warm-up · 1\/4/.test(seq)) fail(`test setup: doubled Warm-up not loaded ("${seq}")`);
+
+    const cdp = await page.context().newCDPSession(page);
+    const touch = (type, pts) => cdp.send('Input.dispatchTouchEvent', {
+      type, touchPoints: pts.map((p, id) => ({ x: p.x, y: p.y, id })),
+    });
+    const spots = await page.evaluate(() => [...document.querySelectorAll('.fb-target')].map((t) => {
+      const r = t.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    }));
+    const stepNow = async () => Number(((await page.locator('.fb-stat').textContent()).match(/(\d+)\/\d+/) || [])[1] || 0);
+
+    // Hold Em and do nothing else. Bar one is Em, bar two is Em again: it has
+    // to carry straight on, and then stop at D because that needs a new hand.
+    await touch('touchStart', spots);
+    await page.waitForTimeout(3400);            // two 2.4s bars, less the hold
+    const reached = await stepNow();
+    await touch('touchEnd', []);
+    await page.waitForTimeout(300);
+    if (reached < 2) fail(`a second bar of the same chord still wants the hand lifted (stuck at step ${reached})`);
+    else if (reached > 2) fail(`holding Em ran past its two bars into step ${reached}`);
+    else pass('two bars of one chord carry on without lifting, and stop at the change');
+
+    // The carried bar formed nothing, so it must not be recorded as the fastest
+    // anyone has ever formed Em.
+    const best = await page.evaluate(() => JSON.parse(localStorage.getItem('learn-guitar/v1') || '{}').forms?.Em || 0);
+    if (best && best < 200) fail(`a carried bar recorded ${best}ms as the best Em — that is doing nothing, not forming a chord`);
+    else pass(`carrying a chord over a bar line does not fake a ${best}ms best`);
 
     await page.close();
   }

@@ -38,7 +38,10 @@ export function FretboardView() {
 
   // --- how the shape is being held -----------------------------------------
   let targets = [];
-  let armed = true;        // must let go before the next rep counts
+  let armed = true;        // ready to count the next clean rep
+  let painted = null;      // the shape currently drawn, so resizes aren't changes
+  let fresh = false;       // the shape just changed under the fingers
+  let repeat = false;      // ...and it changed to the same chord again
   let startedAt = 0;       // when this attempt began, for the timing stat
   let holdTimer = null;
   const active = new Map();
@@ -134,6 +137,17 @@ export function FretboardView() {
     targets = targetsFor(chord, !store.getFlag('soloFingers'))
       .map((t) => ({ ...t, covered: false, el: null, pip: null }));
 
+    // A new shape asks for a new hand, not a fresh start: real changes keep
+    // whatever fingers already sit where the next chord wants them, so the next
+    // rep is armed even though nothing has come off the glass. Resizing repaints
+    // the same shape and must not re-arm anything.
+    if (painted?.id !== chord.id || painted?.step !== step) {
+      repeat = painted?.id === chord.id;
+      painted = { id: chord.id, step };
+      fresh = true;
+      armed = true;
+    }
+
     board.textContent = '';
     board.style.width = `${boardW}px`;
     board.style.height = `${boardH}px`;
@@ -156,6 +170,46 @@ export function FretboardView() {
     // detector while fingers are still on the glass, so a song could advance
     // twice off one press.
     updateHeld([...active.values()]);
+  }
+
+  /**
+   * While a bar plays, outline where the next chord wants your fingers.
+   *
+   * The change is the hard part, not the shape, and you can only plan it if you
+   * can see it coming — this is the same look ahead as reading a bar early.
+   *
+   * A spot is marked "stays" only when the chord you are holding already has
+   * that same finger on that same string and fret — then it genuinely does not
+   * move, which is the whole Am → C change. Where the note is already stopped
+   * but the next chord wants a different finger on it, it gets the ordinary
+   * outline: saying "stays" there would teach the wrong hand.
+   */
+  function showNext(here) {
+    for (const el of board.querySelectorAll('.fb-ghost')) el.remove();
+    const id = song?.chords[here + 1];
+    if (!id || !CHORD_BY_ID[id]) return;
+
+    const soon = targetsFor(CHORD_BY_ID[id], !store.getFlag('soloFingers'));
+    for (const t of soon) {
+      // A finger that doesn't move needs marking on the target under it, not
+      // behind it: an outline drawn there is completely covered by the lit spot
+      // your finger is already on, which is exactly where you'd look for it.
+      const stays = targets.find((c) => c.fret === t.fret
+        && c.finger === t.finger
+        && c.strings.length === t.strings.length
+        && c.strings.every((s, i) => s === t.strings[i]));
+      if (stays) {
+        stays.el.classList.add('is-stays');
+        stays.el.querySelector('.fb-target-label')?.appendChild(h('span', { class: 'fb-stay-tag' }, 'stays'));
+        continue;
+      }
+
+      const r = targetRect(t, soon, ppm, boardW);
+      board.appendChild(h('div', {
+        class: 'fb-ghost',
+        style: `left:${r.x1}px; top:${r.y1}px; width:${r.x2 - r.x1}px; height:${r.y2 - r.y1}px`,
+      }, h('span', { class: 'fb-ghost-label', style: `top:${r.cy - r.y1}px` }, String(t.finger || '•'))));
+    }
   }
 
   // --- the side column -----------------------------------------------------
@@ -243,22 +297,44 @@ export function FretboardView() {
     });
     board.classList.toggle('is-formed', all);
 
+    if (fresh) {
+      fresh = false;
+      if (all && repeat) {
+        // The song is asking for the chord you are already holding, a bar of it
+        // having just gone by. Nobody lifts a hand between two bars of the same
+        // chord, so carry it: the next bar starts now, on the beat.
+        succeed(true);
+        return;
+      }
+      // Otherwise leftover fingers covering the whole of a new shape are not you
+      // playing it — the ones the last chord needed and this one doesn't are
+      // still down, so it isn't sounding. Something has to move first.
+      if (all) armed = false;
+    }
+
     if (all && armed) {
       if (!holdTimer) holdTimer = setTimeout(succeed, HOLD_MS);
       return;
     }
     clearTimeout(holdTimer);
     holdTimer = null;
+    // Playing the same shape again is a fresh rep only once the hand has come
+    // off it. Moving on to a different shape is handled at paint time.
     if (!points.length) armed = true;
   }
 
   const sync = () => updateHeld([...active.values()]);
 
-  function succeed() {
+  /**
+   * `carried` means the shape was already under the hand when the song asked
+   * for it again, so there was nothing to form: no formation time to record, or
+   * the best-ever for that chord becomes a few milliseconds of doing nothing.
+   */
+  function succeed(carried = false) {
     holdTimer = null;
     armed = false;
     const ms = Date.now() - startedAt;
-    const isBest = store.recordForm(chord.id, ms);
+    const isBest = !carried && store.recordForm(chord.id, ms);
     notePractice();
     unlockAudio();
     haptics.chord();
@@ -275,6 +351,7 @@ export function FretboardView() {
     }
 
     const here = step;
+    showNext(here);
     player.playBar(song, here, chord, () => {
       cleared = here + 1 >= song.chords.length;
       step = cleared ? 0 : here + 1;
