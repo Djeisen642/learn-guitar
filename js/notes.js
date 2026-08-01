@@ -1,4 +1,4 @@
-// Note maths shared by the synth and the on-screen fretboard.
+// Note math shared by the synth and the on-screen fretboard.
 
 export const OPEN_MIDI = [40, 45, 50, 55, 59, 64]; // E2 A2 D3 G3 B3 E4, low -> high
 
