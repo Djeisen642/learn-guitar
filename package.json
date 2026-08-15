@@ -12,5 +12,6 @@
   },
   "devDependencies": {
     "playwright": "^1.49.0"
-  }
+  },
+  "packageManager": "pnpm@11.22.0"
 }
