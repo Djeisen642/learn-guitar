@@ -17,6 +17,7 @@ import { onLeave } from './lifecycle.js';
 import { notePractice } from './chrome.js';
 import {
   FRETS, MARKER_PX, GUITARS, DEFAULT_GUITAR, guitar, setGuitar,
+  INLAYS, inlays, setInlays,
   fitBoard, fretMM, pressMM, stringX, targetRect, matchTouches, sizePercent,
 } from './neck.js';
 import { targetsFor, targetLabel } from './shapes.js';
@@ -67,6 +68,7 @@ export function FretboardView() {
   const buzzBtn = h('button', { type: 'button', class: 'fb-buzz' });
   const joinBtn = h('button', { type: 'button', class: 'fb-buzz fb-join' });
   const guitarBtn = h('button', { type: 'button', class: 'fb-buzz fb-guitar' });
+  const dotsBtn = h('button', { type: 'button', class: 'fb-buzz fb-dots' });
 
   const player = createPlayback({
     onPlayingChange: (on) => hearBtn.classList.toggle('is-playing', on),
@@ -79,6 +81,7 @@ export function FretboardView() {
     // is sized from it, so re-reading it here means a change to the setting
     // takes effect on the next paint and nowhere else has to remember to.
     setGuitar(store.getSetting('guitar', DEFAULT_GUITAR));
+    setInlays(store.getSetting('inlays', null));
     // MARKER_PX must match .fb's top margin, which is layout the board sits
     // below rather than inside.
     const avail = stage.getBoundingClientRect().height - MARKER_PX;
@@ -98,10 +101,9 @@ export function FretboardView() {
       board.appendChild(h('div', { class: 'fb-fret', style: `top:${fretMM(n) * ppm}px` }));
     }
     // Position dots are how you find your place without looking at the
-    // headstock — but which frets carry them is a property of the instrument,
-    // not of guitars. A steel-string acoustic has nothing at the 3rd fret and a
-    // classical has nothing at all, so the pattern comes from the chosen neck.
-    for (const n of guitar().inlays) {
+    // headstock. Which frets carry them is a property of the one instrument in
+    // the player's hands, not of guitars, so the pattern is its own setting.
+    for (const n of inlays().frets) {
       if (fretMM(n) * ppm >= boardH) continue;
       board.appendChild(h('div', {
         class: 'fb-inlay',
@@ -484,9 +486,27 @@ export function FretboardView() {
     haptics.tick();
   });
 
+  // The dots are the one thing on this board a player checks against their own
+  // neck without thinking about it, and both patterns are current on ordinary
+  // acoustics — so it is asked rather than guessed.
+  function paintDots() {
+    const p = inlays();
+    dotsBtn.textContent = p.name;
+    dotsBtn.title = 'The frets your guitar has position dots on. Look at your own '
+      + 'neck: if there is a dot at the 3rd fret, pick the pattern that starts there.';
+  }
+  dotsBtn.addEventListener('click', () => {
+    const at = INLAYS.findIndex((p) => p.id === inlays().id);
+    store.setSetting('inlays', INLAYS[(at + 1) % INLAYS.length].id);
+    paint();
+    paintDots();
+    haptics.tick();
+  });
+
   paintBuzz();
   paintJoin();
   paintGuitar();
+  paintDots();
   paintList();
 
   // Measuring once is not enough: filling in the finger pips grows the header,
@@ -517,6 +537,7 @@ export function FretboardView() {
       speedBtn,
       strip,
       guitarBtn,
+      dotsBtn,
       joinBtn,
       buzzBtn,
     ),

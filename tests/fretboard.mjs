@@ -235,6 +235,7 @@ export async function run(browser, base, log) {
     // Which fret cell a dot sits in, counted off the wires actually drawn — so
     // this holds whether or not the board came out life size.
     const cellOf = (top, frets) => frets.filter((f) => f < top).length + 1;
+    const dots = (g) => g.inlays.map((t) => cellOf(t, g.frets));
 
     // Walk the whole list by tapping, stopping when it comes back around.
     const seen = [];
@@ -263,12 +264,57 @@ export async function run(browser, base, log) {
       if (spread < 5) fail(`every guitar puts fret 1 within ${spread.toFixed(1)}px — the choice isn't reaching the geometry`);
       else pass(`fret 1 moves ${spread.toFixed(1)}px (${(spread / PX_PER_MM).toFixed(1)}mm) across the guitars`);
 
-      // The dot at the 3rd fret is the mismatch you can spot without a ruler:
-      // a steel-string acoustic has none there, an electric does.
-      const dots = (g) => g.inlays.map((t) => cellOf(t, g.frets));
-      if (dots(seen[0]).includes(3)) fail('the acoustic neck is drawn with an electric\'s 3rd-fret dot');
-      else if (!seen.some((g) => dots(g).includes(3))) fail('no guitar in the list carries a 3rd-fret dot');
-      else pass('position dots follow the instrument — no 3rd-fret dot on the acoustic, one on the electric');
+      // The dot at the 3rd fret is the mismatch a player spots without a ruler,
+      // so each guitar has to start on the pattern it usually ships with.
+      if (dots(seen[0]).includes(3)) fail('the acoustic neck starts with an electric\'s 3rd-fret dot');
+      else if (!seen.some((g) => dots(g).includes(3))) fail('no guitar in the list starts with a 3rd-fret dot');
+      else pass('each guitar starts on the dot pattern it usually ships with');
+    }
+
+    // ...but the pattern is not a fact about the body. Both conventions are
+    // current on ordinary steel-string acoustics, so it has to be settable on
+    // its own, and the answer has to outlive switching guitars — the player's
+    // neck didn't change when they corrected the scale length.
+    {
+      await page.evaluate(() => localStorage.clear());
+      await page.reload({ waitUntil: 'networkidle' });
+      await page.waitForTimeout(600);
+
+      const base0 = await read();
+      const patterns = [];
+      for (let i = 0; i < 6; i++) {
+        const g = await read();
+        const name = await page.locator('.fb-dots').textContent();
+        if (patterns.some((p) => p.name === name)) break;
+        patterns.push({ name, cells: dots(g) });
+        await page.locator('.fb-dots').click();
+        await page.waitForTimeout(150);
+      }
+      const withDot3 = patterns.find((p) => p.cells.includes(3));
+      if (patterns.length < 2) fail(`the dot pattern only offers ${patterns.length} option(s)`);
+      else if (!withDot3) fail('the acoustic can never be given a 3rd-fret dot');
+      else pass(`the dot pattern is settable on its own (${patterns.map((p) => p.name).join(', ')})`);
+
+      // Choosing dots must not quietly move the frets, and vice versa.
+      const now = await read();
+      if (Math.abs(now.frets[0] - base0.frets[0]) > 0.5) fail('changing the dot pattern moved the frets');
+      else pass('changing the dot pattern leaves the scale length alone');
+
+      // Set the 3rd-fret pattern, then switch guitars: the dots must survive.
+      while (!(dots(await read()).includes(3))) {
+        await page.locator('.fb-dots').click();
+        await page.waitForTimeout(150);
+      }
+      await page.locator('.fb-guitar').click();          // acoustic -> electric
+      await page.waitForTimeout(200);
+      await page.locator('.fb-guitar').click();          // -> short scale
+      await page.waitForTimeout(200);
+      while (await page.locator('.fb-guitar').textContent() !== 'Acoustic') {
+        await page.locator('.fb-guitar').click();
+        await page.waitForTimeout(150);
+      }
+      if (!dots(await read()).includes(3)) fail('picking a guitar threw away the chosen dot pattern');
+      else pass('a chosen dot pattern survives switching guitars');
     }
     await page.close();
   }

@@ -15,8 +15,10 @@ dependencies, no accounts — just static files served by GitHub Pages.
   actually own — steel-string acoustic (the default), electric, short scale,
   parlor, 3/4 size or classical — and frets 1-3 are drawn at that guitar's true
   spacing (36.2 / 34.2 / 32.3mm on a dreadnought, 33.5 / 31.6 / 29.8mm on a 3/4
-  size), with its string spacing and its own position dots: no 3rd-fret dot on an
-  acoustic, none at all on a classical. So the shape your
+  size) and its string spacing. The position dots are asked separately, because
+  both conventions are current on ordinary acoustics — 5, 7, 9 and 12, or the
+  same plus a 3rd-fret dot — and two dreadnoughts of the same scale disagree. So
+  the shape your
   hand makes on the glass is the shape it makes on the instrument. Place every
   numbered finger on its target and the chord only sounds once the whole shape is
   genuinely held — one finger per position, pressed just behind the fret.
@@ -88,9 +90,9 @@ something actually broke:
   site; clearing the drill's chord list crashed.
 - **Offline** — reloads with the network cut and still runs.
 - **Fretboard geometry** — asserts frets and string spacing land within 0.5mm of
-  the selected neck, that changing the guitar really moves the frets and the
-  position dots (an acoustic must not be drawn with an electric's 3rd-fret dot),
-  that no chord's finger targets fall off the board, and that
+  the selected neck, that changing the guitar really moves the frets, that the
+  dot pattern is settable on its own and survives switching guitars without
+  moving the frets, that no chord's finger targets fall off the board, and that
   a phone too small to fit a real neck *says so* rather than quietly shrinking.
   Also that every chord shows the fingering it is taught with: A as the
   mini-barre, Em, Am and Dsus4 with separate fingers.

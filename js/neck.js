@@ -20,48 +20,45 @@ export const FRETS = 3;          // every open chord lives inside frets 1-3
  * then has to unlearn on the instrument — which is the whole point of drawing
  * it at true size.
  *
- * `inlays` is part of the spec because it is the difference you can see without
- * measuring anything: steel-string acoustics are marked at 5, 7, 9 and 12,
- * electrics add a 3rd-fret dot, and classical necks carry none on the face.
- * A dot the player's own guitar doesn't have is the app describing someone
- * else's instrument.
+ * `inlays` names a starting pattern, not a fact about the body — see INLAYS
+ * below for why it has to be settable on its own.
  */
 export const GUITARS = [
   {
     id: 'acoustic', name: 'Acoustic', full: 'steel-string acoustic',
     scaleMM: 645.2,                        // 25.4", the dreadnought standard
     stringMM: 7.3, edgeMM: 3.9,            // 44mm nut
-    inlays: [5, 7, 9],
+    inlays: 'from5',
   },
   {
     id: 'electric', name: 'Electric', full: 'electric (Strat / Tele)',
     scaleMM: 647.7,                        // 25.5"
     stringMM: 7.3, edgeMM: 3.6,            // 43.7mm nut
-    inlays: [3, 5, 7, 9],
+    inlays: 'from3',
   },
   {
     id: 'shortscale', name: 'Short scale', full: 'short scale (Les Paul, J-45)',
     scaleMM: 628.7,                        // 24.75"
     stringMM: 7.3, edgeMM: 3.8,
-    inlays: [3, 5, 7, 9],
+    inlays: 'from3',
   },
   {
     id: 'parlor', name: 'Parlor', full: 'parlor / concert',
     scaleMM: 609.6,                        // 24"
     stringMM: 7.2, edgeMM: 3.8,
-    inlays: [5, 7, 9],
+    inlays: 'from5',
   },
   {
     id: 'mini', name: '3/4 size', full: '3/4 size / travel',
     scaleMM: 596.9,                        // 23.5", the Mini / Baby size
     stringMM: 7.1, edgeMM: 3.7,
-    inlays: [5, 7, 9],
+    inlays: 'from5',
   },
   {
     id: 'classical', name: 'Classical', full: 'classical / nylon',
     scaleMM: 650,
     stringMM: 8.6, edgeMM: 4.4,            // 52mm nut — the widest neck here
-    inlays: [],
+    inlays: 'none',
   },
 ];
 
@@ -84,6 +81,39 @@ export const guitar = () => current;
 export function setGuitar(id) {
   current = BY_ID[id] || BY_ID[DEFAULT_GUITAR];
   return current;
+}
+
+/**
+ * Where the position dots sit — its own setting, because it does not follow
+ * from the body.
+ *
+ * Two conventions are both current on steel-string acoustics. The older
+ * Martin-derived one marks 5, 7, 9 and 12; the one that came over from
+ * electrics adds a dot at the 3rd fret, and it is what most import and
+ * entry-level acoustics ship with now. Two dreadnoughts of the same scale can
+ * disagree, so guessing the pattern from the guitar gets it wrong about half
+ * the time — and this is the one thing on the neck a player checks against
+ * their own instrument at a glance, so getting it wrong costs the whole
+ * board's credibility.
+ */
+export const INLAYS = [
+  { id: 'from5', name: 'dots 5·7·9', frets: [5, 7, 9, 12] },
+  { id: 'from3', name: 'dots 3·5·7', frets: [3, 5, 7, 9, 12] },
+  { id: 'none', name: 'no dots', frets: [] },
+];
+
+const INLAY_BY_ID = Object.fromEntries(INLAYS.map((p) => [p.id, p]));
+
+// null means "whatever this guitar usually ships with"; an explicit choice
+// outlives switching guitars, because the player's neck didn't change.
+let inlayChoice = null;
+
+/** The dot pattern currently drawn. */
+export const inlays = () => INLAY_BY_ID[inlayChoice] || INLAY_BY_ID[current.inlays];
+
+export function setInlays(id) {
+  inlayChoice = INLAY_BY_ID[id] ? id : null;
+  return inlays();
 }
 
 // Phones cluster tightly around 6 CSS px per physical millimeter: an iPhone 12
