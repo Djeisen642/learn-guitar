@@ -16,7 +16,8 @@ import { h, fill } from './dom.js';
 import { onLeave } from './lifecycle.js';
 import { notePractice } from './chrome.js';
 import {
-  FRETS, MARKER_PX, fitBoard, fretMM, pressMM, stringX, targetRect, matchTouches, sizePercent,
+  FRETS, MARKER_PX, GUITARS, DEFAULT_GUITAR, guitar, setGuitar,
+  fitBoard, fretMM, pressMM, stringX, targetRect, matchTouches, sizePercent,
 } from './neck.js';
 import { targetsFor, targetLabel } from './shapes.js';
 import { createPlayback, cycleSpeed, speed, SPEED_LABEL } from './playback.js';
@@ -65,6 +66,7 @@ export function FretboardView() {
   const speedBtn = h('button', { class: 'fb-buzz fb-speed', type: 'button', hidden: true });
   const buzzBtn = h('button', { type: 'button', class: 'fb-buzz' });
   const joinBtn = h('button', { type: 'button', class: 'fb-buzz fb-join' });
+  const guitarBtn = h('button', { type: 'button', class: 'fb-buzz fb-guitar' });
 
   const player = createPlayback({
     onPlayingChange: (on) => hearBtn.classList.toggle('is-playing', on),
@@ -73,6 +75,10 @@ export function FretboardView() {
 
   // --- drawing the neck ----------------------------------------------------
   function measure() {
+    // The one place the saved instrument reaches the geometry. Everything below
+    // is sized from it, so re-reading it here means a change to the setting
+    // takes effect on the next paint and nowhere else has to remember to.
+    setGuitar(store.getSetting('guitar', DEFAULT_GUITAR));
     // MARKER_PX must match .fb's top margin, which is layout the board sits
     // below rather than inside.
     const avail = stage.getBoundingClientRect().height - MARKER_PX;
@@ -91,9 +97,11 @@ export function FretboardView() {
     for (let n = 1; n <= FRETS + 2 && fretMM(n) * ppm <= boardH + 1; n++) {
       board.appendChild(h('div', { class: 'fb-fret', style: `top:${fretMM(n) * ppm}px` }));
     }
-    // Real necks carry position dots at the 3rd and 5th frets; that's how you
-    // find your place without looking at the headstock.
-    for (const n of [3, 5]) {
+    // Position dots are how you find your place without looking at the
+    // headstock — but which frets carry them is a property of the instrument,
+    // not of guitars. A steel-string acoustic has nothing at the 3rd fret and a
+    // classical has nothing at all, so the pattern comes from the chosen neck.
+    for (const n of guitar().inlays) {
       if (fretMM(n) * ppm >= boardH) continue;
       board.appendChild(h('div', {
         class: 'fb-inlay',
@@ -217,7 +225,7 @@ export function FretboardView() {
     const scale = sizePercent(ppm);
     const size = scale >= 99 ? 'life size' : `${scale}% size`;
     statEl.title = scale >= 99
-      ? 'Shown at the size of a real 25.5" neck'
+      ? `Shown at the size of a real ${guitar().full} neck`
       : `This screen is too small for a real neck, so it is shown at ${scale}%`;
 
     for (const el of [nextEl, progressEl, hearBtn, speedBtn]) el.hidden = !song;
@@ -457,8 +465,28 @@ export function FretboardView() {
     haptics.tick();
   });
 
+  // Which guitar is on the other side of the practice. A neck drawn at the size
+  // of an instrument you don't own is worse than one that admits it scaled
+  // down, because nothing on screen says it is wrong — so the answer is always
+  // visible here rather than buried in a settings screen.
+  function paintGuitar() {
+    const g = guitar();
+    guitarBtn.textContent = g.name;
+    guitarBtn.title = `Drawn as a ${g.full} neck: `
+      + `${(g.scaleMM / 25.4).toFixed(2)}" scale, strings ${g.stringMM}mm apart. `
+      + 'Tap for the next guitar.';
+  }
+  guitarBtn.addEventListener('click', () => {
+    const at = GUITARS.findIndex((g) => g.id === store.getSetting('guitar', DEFAULT_GUITAR));
+    store.setSetting('guitar', GUITARS[(at + 1) % GUITARS.length].id);
+    paint();          // re-measures, so the frets move with the choice
+    paintGuitar();
+    haptics.tick();
+  });
+
   paintBuzz();
   paintJoin();
+  paintGuitar();
   paintList();
 
   // Measuring once is not enough: filling in the finger pips grows the header,
@@ -488,6 +516,7 @@ export function FretboardView() {
       hearBtn,
       speedBtn,
       strip,
+      guitarBtn,
       joinBtn,
       buzzBtn,
     ),

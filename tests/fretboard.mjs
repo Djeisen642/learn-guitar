@@ -1,7 +1,9 @@
 // The fretboard's two promises, checked against reality.
 //
-//  1. It is a real neck, not a picture of one — frets and strings land where a
-//     25.5" guitar puts them, or the app says plainly that it scaled down.
+//  1. It is a real neck, not a picture of one — frets and strings land where
+//     the selected guitar puts them, or the app says plainly that it scaled
+//     down. "Life size" is a claim about one instrument, so changing which
+//     instrument has to actually move the frets.
 //  2. A chord only sounds when the shape is genuinely held. Adjacent targets sit
 //     ~7mm apart with a ~5mm touch tolerance, so one broad touch overlaps two of
 //     them; without one-to-one matching a sloppy shape would pass.
@@ -9,7 +11,8 @@
 import { SONGS, CHORD_BY_ID, strumSchedule } from '../js/data.js';
 
 const PX_PER_MM = 6.05;             // must match js/fretboard.js
-const SCALE_MM = 647.7;
+// The shipped default, a steel-string acoustic — see GUITARS in js/neck.js.
+const SCALE_MM = 645.2;
 const fretMM = (n) => SCALE_MM - SCALE_MM / Math.pow(2, n / 12);
 
 export async function run(browser, base, log) {
@@ -210,6 +213,62 @@ export async function run(browser, base, log) {
           .length;
       });
       if (off) fail(`${name}: ${id} has ${off} finger target(s) off the board`);
+    }
+    await page.close();
+  }
+
+  // --- the neck is the player's guitar ------------------------------------
+  // Drawn against the wrong instrument, life size is worse than a diagram: the
+  // hand learns a shape it then has to unlearn, and nothing on screen says so.
+  // Picking a guitar has to really move the frets and the position dots.
+  {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+    page.on('pageerror', (e) => fail(`pageerror: ${e.message}`));
+    await page.goto(`${base}#/play`, { waitUntil: 'networkidle' });
+    await page.waitForTimeout(600);
+
+    const read = () => page.evaluate(() => ({
+      name: document.querySelector('.fb-guitar')?.textContent,
+      frets: [...document.querySelectorAll('.fb-fret')].map((f) => parseFloat(f.style.top)),
+      inlays: [...document.querySelectorAll('.fb-inlay')].map((f) => parseFloat(f.style.top)),
+    }));
+    // Which fret cell a dot sits in, counted off the wires actually drawn — so
+    // this holds whether or not the board came out life size.
+    const cellOf = (top, frets) => frets.filter((f) => f < top).length + 1;
+
+    // Walk the whole list by tapping, stopping when it comes back around.
+    const seen = [];
+    for (let i = 0; i < 12; i++) {
+      const g = await read();
+      if (!g.name) break;
+      if (seen.some((s) => s.name === g.name)) break;
+      seen.push(g);
+      await page.locator('.fb-guitar').click();
+      await page.waitForTimeout(150);
+    }
+
+    if (seen.length < 4) {
+      fail(`only ${seen.length} guitar(s) to choose from`);
+    } else {
+      pass(`${seen.length} guitars offered, and the picker cycles back around (${seen.map((g) => g.name).join(', ')})`);
+
+      // The default is what most people learning from a phone are holding.
+      if (seen[0].name !== 'Acoustic') fail(`the neck starts as "${seen[0].name}", not the steel-string acoustic`);
+      else pass('the neck starts as a steel-string acoustic');
+
+      // A scale length you can't see is a scale length nobody can trust: the
+      // shortest neck's 1st fret has to sit visibly nearer the nut.
+      const first = seen.map((g) => g.frets[0]);
+      const spread = Math.max(...first) - Math.min(...first);
+      if (spread < 5) fail(`every guitar puts fret 1 within ${spread.toFixed(1)}px — the choice isn't reaching the geometry`);
+      else pass(`fret 1 moves ${spread.toFixed(1)}px (${(spread / PX_PER_MM).toFixed(1)}mm) across the guitars`);
+
+      // The dot at the 3rd fret is the mismatch you can spot without a ruler:
+      // a steel-string acoustic has none there, an electric does.
+      const dots = (g) => g.inlays.map((t) => cellOf(t, g.frets));
+      if (dots(seen[0]).includes(3)) fail('the acoustic neck is drawn with an electric\'s 3rd-fret dot');
+      else if (!seen.some((g) => dots(g).includes(3))) fail('no guitar in the list carries a 3rd-fret dot');
+      else pass('position dots follow the instrument — no 3rd-fret dot on the acoustic, one on the electric');
     }
     await page.close();
   }

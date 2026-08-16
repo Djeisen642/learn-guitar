@@ -36,13 +36,24 @@ export const CHORDS = [
   },
   {
     id: 'G', name: 'G', full: 'G major', group: 'Major',
-    frets: [3, 2, 0, 0, 0, 3], fingers: [2, 1, 0, 0, 0, 3],
-    tip: 'The classic 3-finger G. Using fingers 2-1-3 (not 1-2-3) makes the change to C and D much easier.',
+    // Ring-middle-pinky, not middle-index-ring. The ring and middle land on the
+    // 6th and 5th strings in the same relative shape C wants on the 5th and
+    // 4th, so G -> C slides the pair across one string instead of rebuilding
+    // the hand; G -> G7 keeps both of them still; and Em -> G leaves the middle
+    // finger parked on the 5th fret 2. Ring and pinky are tendon-linked and
+    // fight each other at different frets — here they are both at fret 3, which
+    // is the one thing that pair does easily.
+    frets: [3, 2, 0, 0, 0, 3], fingers: [3, 2, 0, 0, 0, 4],
+    tip: 'Ring on the low E, middle on the A, pinky on the high E. It feels odd for a day and then G → C is half the work it was, because the ring and middle just step across one string together.',
   },
   {
     id: 'G4', name: 'G', full: 'G major (4-finger)', group: 'Major',
+    // Deliberately not fingered like the 3-finger G: here the ring is needed on
+    // the B string, so the low E falls to the middle finger. That is the trade
+    // that buys the anchor — ring and pinky hold the 3rd fret of the top two
+    // strings and then never move again through Cadd9 and Dsus4.
     frets: [3, 2, 0, 0, 3, 3], fingers: [2, 1, 0, 0, 3, 4],
-    tip: 'Big, full-sounding G. Pairs perfectly with Cadd9 and Dsus4 — you only move two fingers between them.',
+    tip: 'Big, full-sounding G, and fingered differently from the 3-finger one on purpose: ring and pinky sit on the top two strings and stay there through Cadd9 and Dsus4.',
   },
   {
     id: 'F', name: 'F', full: 'F major (full barre)', group: 'Major',
@@ -94,8 +105,10 @@ export const CHORDS = [
   },
   {
     id: 'A7', name: 'A7', full: 'A dominant 7th', group: '7th',
-    frets: [-1, 0, 2, 0, 2, 0], fingers: [0, 0, 2, 0, 3, 0],
-    tip: 'Two fingers. Great stepping stone while the full A shape is still cramped.',
+    // Index and ring, the two fingers A already has on those strings, so A -> A7
+    // is one finger lifting rather than a re-grip.
+    frets: [-1, 0, 2, 0, 2, 0], fingers: [0, 0, 1, 0, 3, 0],
+    tip: 'A with the middle finger lifted off the G string — nothing else moves. A great stepping stone while the full A shape is still cramped.',
   },
   {
     id: 'D7', name: 'D7', full: 'D dominant 7th', group: '7th',
@@ -129,9 +142,12 @@ export const CHORDS = [
   },
   {
     id: 'Dm7', name: 'Dm7', full: 'D minor 7th', group: '7th',
-    frets: [-1, -1, 0, 2, 1, 1], fingers: [0, 0, 0, 3, 1, 1],
+    // Middle on the G string, not ring: it is the finger already sitting there
+    // in Am7 and Dm, so the change is the index flattening into a barre while
+    // the middle stays put. Reaching with the ring spreads the hand for nothing.
+    frets: [-1, -1, 0, 2, 1, 1], fingers: [0, 0, 0, 2, 1, 1],
     barres: [{ fret: 1, from: 4, to: 5 }],
-    tip: 'A mini barre with the index across the top two strings.',
+    tip: 'A mini barre with the index across the top two strings. Coming from Am7 the middle finger just slides one string over and the index flattens where it already was.',
   },
   {
     id: 'Cmaj7', name: 'Cmaj7', full: 'C major 7th', group: '7th',
@@ -153,9 +169,14 @@ export const CHORDS = [
   },
   {
     id: 'Asus4', name: 'Asus4', full: 'A suspended 4th', group: 'Sus / add',
-    frets: [-1, 0, 2, 2, 3, 0], fingers: [0, 0, 1, 2, 3, 0],
+    // Pinky, not ring. Held that way the whole A stays down and the pinky drops
+    // in front of the ring on the same string — a fretted note beats the one
+    // behind it, so nothing has to lift and the A is still there when the pinky
+    // comes off. With the mini-barre the join renumbers this back to the ring,
+    // which is correct there for the same reason: it is the free finger.
+    frets: [-1, 0, 2, 2, 3, 0], fingers: [0, 0, 1, 2, 4, 0],
     join: [[2, 3]],              // same mini-barre as A
-    tip: 'Add the ring finger to A. Alternate A → Asus4 → A.',
+    tip: 'Hold a full A and drop the pinky onto the B string in front of the ring finger. Nothing lifts, so A → Asus4 → A is a wiggle rather than a change.',
   },
   {
     id: 'Dsus2', name: 'Dsus2', full: 'D suspended 2nd', group: 'Sus / add',
@@ -174,8 +195,12 @@ export const CHORDS = [
   },
   {
     id: 'Cadd9', name: 'Cadd9', full: 'C add 9', group: 'Sus / add',
-    frets: [-1, 3, 2, 0, 3, 0], fingers: [0, 3, 2, 0, 4, 0],
-    tip: 'Play it next to the 4-finger G: fingers 3 and 4 never leave the strings.',
+    // The high E is fretted, not open, and that is the whole point: it puts the
+    // pinky where G (4-finger) and Dsus4 already have it, so ring and pinky sit
+    // still and only the middle and index step across a string. x32030 is a
+    // fine Cadd9 too, but it breaks the anchor this chord exists for.
+    frets: [-1, 3, 2, 0, 3, 3], fingers: [0, 2, 1, 0, 3, 4],
+    tip: 'Play it next to the 4-finger G: fingers 3 and 4 never leave the strings. Middle on the A, index on the D — index sits nearer the nut, which is where it wants to be.',
   },
   {
     id: 'GB', name: 'G/B', full: 'G major over B', group: 'Sus / add',
@@ -184,8 +209,12 @@ export const CHORDS = [
   },
   {
     id: 'DFs', name: 'D/F#', full: 'D major over F#', group: 'Sus / add',
-    frets: [2, -1, 0, 2, 3, 2], fingers: [1, 0, 0, 2, 4, 3],
-    tip: 'Most players wrap the thumb over the top to grab the F#. It bridges G → D/F# → Em beautifully.',
+    // 2-3-4 across the D triangle, not 2-4-3. The fingers then run in their own
+    // order from the bass string outward; the old pairing sent the ring past
+    // the pinky to reach the high E, which crosses the hand over itself. This
+    // way the ring also stays put on the B string coming from D.
+    frets: [2, -1, 0, 2, 3, 2], fingers: [1, 0, 0, 2, 3, 4],
+    tip: 'The D triangle played one finger higher — middle, ring, pinky — which frees the index for the F#. Most players wrap the thumb over instead; either way it bridges G → D/F# → Em beautifully.',
   },
 
   // --- power chords ------------------------------------------------------
@@ -411,9 +440,13 @@ export const SONGS = [
     note: 'The 12 bars as their seven changes, ending on the turnaround back to A7.',
   },
   {
-    id: 'britpop', name: 'Britpop loop', chords: ['Em', 'G', 'Dsus4', 'Cadd9'],
+    // The 4-finger G, not the 3-finger one: it is the only G that puts the ring
+    // and pinky on the 3rd fret of the top two strings, which is what the other
+    // three chords here also want. With the plain G the note below was a lie —
+    // every finger moved on every change.
+    id: 'britpop', name: 'Britpop loop', chords: ['Em', 'G4', 'Dsus4', 'Cadd9'],
     meter: 4, bpm: 87, beats: [4, 4, 4, 4],
-    note: 'Keep fingers 3 and 4 down throughout.',
+    note: 'Once the G is down, fingers 3 and 4 stay on the top two strings for the rest of the loop.',
   },
 ];
 

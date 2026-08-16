@@ -8,10 +8,83 @@
 // physical units are fiction on a phone (1mm is always 3.78px regardless of the
 // real display), so declaring `43mm` would produce a neck two thirds of life size.
 
-export const SCALE_MM = 647.7;   // 25.5" scale length, the Fender/Martin standard
-export const STRING_MM = 7.3;    // string centers at the nut
-export const EDGE_MM = 3.6;      // fretboard beyond the outer strings
 export const FRETS = 3;          // every open chord lives inside frets 1-3
+
+/**
+ * The necks this can be a life-size slice of.
+ *
+ * "Life size" is a claim about a specific instrument, not about guitars in
+ * general: a 3/4 travel guitar's 3rd fret sits 8mm closer to the nut than a
+ * Strat's, and a classical's strings are 8.6mm apart rather than 7.3mm. Drawn
+ * against the wrong one, the shape the hand learns on the glass is a shape it
+ * then has to unlearn on the instrument — which is the whole point of drawing
+ * it at true size.
+ *
+ * `inlays` is part of the spec because it is the difference you can see without
+ * measuring anything: steel-string acoustics are marked at 5, 7, 9 and 12,
+ * electrics add a 3rd-fret dot, and classical necks carry none on the face.
+ * A dot the player's own guitar doesn't have is the app describing someone
+ * else's instrument.
+ */
+export const GUITARS = [
+  {
+    id: 'acoustic', name: 'Acoustic', full: 'steel-string acoustic',
+    scaleMM: 645.2,                        // 25.4", the dreadnought standard
+    stringMM: 7.3, edgeMM: 3.9,            // 44mm nut
+    inlays: [5, 7, 9],
+  },
+  {
+    id: 'electric', name: 'Electric', full: 'electric (Strat / Tele)',
+    scaleMM: 647.7,                        // 25.5"
+    stringMM: 7.3, edgeMM: 3.6,            // 43.7mm nut
+    inlays: [3, 5, 7, 9],
+  },
+  {
+    id: 'shortscale', name: 'Short scale', full: 'short scale (Les Paul, J-45)',
+    scaleMM: 628.7,                        // 24.75"
+    stringMM: 7.3, edgeMM: 3.8,
+    inlays: [3, 5, 7, 9],
+  },
+  {
+    id: 'parlor', name: 'Parlor', full: 'parlor / concert',
+    scaleMM: 609.6,                        // 24"
+    stringMM: 7.2, edgeMM: 3.8,
+    inlays: [5, 7, 9],
+  },
+  {
+    id: 'mini', name: '3/4 size', full: '3/4 size / travel',
+    scaleMM: 596.9,                        // 23.5", the Mini / Baby size
+    stringMM: 7.1, edgeMM: 3.7,
+    inlays: [5, 7, 9],
+  },
+  {
+    id: 'classical', name: 'Classical', full: 'classical / nylon',
+    scaleMM: 650,
+    stringMM: 8.6, edgeMM: 4.4,            // 52mm nut — the widest neck here
+    inlays: [],
+  },
+];
+
+// Most people learning from a phone are holding a steel-string acoustic, so
+// that is what the neck is until someone says otherwise.
+export const DEFAULT_GUITAR = 'acoustic';
+
+const BY_ID = Object.fromEntries(GUITARS.map((g) => [g.id, g]));
+
+let current = BY_ID[DEFAULT_GUITAR];
+
+/** The neck currently being drawn. */
+export const guitar = () => current;
+
+/**
+ * Choose the instrument. Kept here rather than read from storage so this module
+ * stays checkable on its own; the Play view is the single place that syncs it
+ * from the saved setting, on every measure, so the two can't drift apart.
+ */
+export function setGuitar(id) {
+  current = BY_ID[id] || BY_ID[DEFAULT_GUITAR];
+  return current;
+}
 
 // Phones cluster tightly around 6 CSS px per physical millimeter: an iPhone 12
 // is 6.04, a Pixel 7 6.24, a Galaxy S23 5.58. There's no API for real DPI, so
@@ -21,8 +94,8 @@ export const PX_PER_MM = 6.05;
 export const MARKER_PX = 30;     // gap above the nut for the o / x row; matches .fb margin-top
 const SIDE_MIN_PX = 62;          // narrowest the column beside the neck may get
 
-// A real neck carries ~3.6mm of fretboard past the outer string, and your hand
-// wraps around it. A phone can't be wrapped around, so that margin is just
+// A real neck carries a few millimeters of fretboard past the outer string, and
+// your hand wraps around it. A phone can't be wrapped around, so that margin is just
 // glass you have to reach across before the first string. The board is run off
 // the right edge instead and the surplus clipped, putting the outer string
 // almost against the rim — where a finger curling over the edge actually lands.
@@ -38,8 +111,9 @@ const LAYOUT_GAP_PX = 12;        // page padding plus the gap to the side column
 // every part of the cell is a genuinely correct answer.
 //
 // Horizontally it is the string lane, because pressing the wrong string is a
-// wrong note. That caps the width at the 7.3mm string spacing wherever a chord
-// puts fingers on neighboring strings, which is under the ~10mm that touch
+// wrong note. That caps the width at the guitar's string spacing wherever a
+// chord puts fingers on neighboring strings — 7.3mm on a steel-string, and
+// that is under the ~10mm that touch
 // research treats as the floor for reliable hits (fingertip contact is 8-14mm).
 // That gap is exactly why three-in-a-fret feels cramped on glass, and it isn't
 // something the app can design away without lying about the instrument. Where
@@ -49,14 +123,14 @@ const WIRE_INSET_MM = 1;         // keep the fret wires readable as edges
 const EDGE_FORGIVE_MM = 1.5;
 
 /** Distance from the nut to fret `n`, in millimeters. */
-export const fretMM = (n) => SCALE_MM - SCALE_MM / Math.pow(2, n / 12);
+export const fretMM = (n) => current.scaleMM - current.scaleMM / Math.pow(2, n / 12);
 
 // Press just behind the fret wire — that's where a note rings cleanly, so the
 // targets sit there and the habit comes along for free.
 export const pressMM = (n) => fretMM(n - 1) + (fretMM(n) - fretMM(n - 1)) * 0.72;
 
 /** Where string `s` sits across the board, in pixels. */
-export const stringX = (s, ppm) => (EDGE_MM + s * STRING_MM) * ppm;
+export const stringX = (s, ppm) => (current.edgeMM + s * current.stringMM) * ppm;
 
 /** How close to life size the board ended up, as a whole percentage. */
 export const sizePercent = (ppm) => Math.round((ppm / PX_PER_MM) * 100);
@@ -73,7 +147,7 @@ export function fitBoard(avail, viewW) {
 
   // Only the board up to the outer string takes layout width — everything past
   // it runs off the screen and is clipped.
-  const toOuter = EDGE_MM + STRING_MM * 5;
+  const toOuter = current.edgeMM + current.stringMM * 5;
   const edgePx = STRING_EDGE_MM * PX_PER_MM;
   const roomW = viewW - SIDE_MIN_PX - LAYOUT_GAP_PX;
 
@@ -85,7 +159,7 @@ export function fitBoard(avail, viewW) {
 
   return {
     ppm,
-    boardW: (STRING_MM * 5 + EDGE_MM * 2) * ppm,
+    boardW: (current.stringMM * 5 + current.edgeMM * 2) * ppm,
     boardH: Math.max(fretMM(FRETS) * ppm, Math.min(avail, fretMM(FRETS + 2) * ppm)),
     // The stage is the visible slice; the board overflows it and gets cut off.
     stageW: toOuter * ppm + edgePx,
@@ -101,12 +175,13 @@ export function fitBoard(avail, viewW) {
  * fret can crowd it.
  */
 export function targetRect(t, others, ppm, boardW) {
-  const half = (STRING_MM / 2) * ppm;
+  const half = (current.stringMM / 2) * ppm;
   const inset = WIRE_INSET_MM * ppm;
   const loX = stringX(Math.min(...t.strings), ppm);
   const hiX = stringX(Math.max(...t.strings), ppm);
 
-  const grow = ((LANE_MAX_MM - STRING_MM) / 2) * ppm;
+  // A classical's strings are already past the 10mm floor, so it never grows.
+  const grow = Math.max(0, ((LANE_MAX_MM - current.stringMM) / 2) * ppm);
   let left = loX - half - grow;
   let right = hiX + half + grow;
   for (const other of others) {
