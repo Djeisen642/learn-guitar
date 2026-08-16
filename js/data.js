@@ -44,7 +44,7 @@ export const CHORDS = [
     // fight each other at different frets — here they are both at fret 3, which
     // is the one thing that pair does easily.
     frets: [3, 2, 0, 0, 0, 3], fingers: [3, 2, 0, 0, 0, 4],
-    tip: 'Ring on the low E, middle on the A, pinky on the high E. It feels odd for a day and then G → C is half the work it was, because the ring and middle just step across one string together.',
+    tip: 'Ring on the low E, middle on the A, pinky on the high E. The ring is the pivot finger: it steps from the 6th string to the 5th without changing fret and the middle follows it, so G → C stops being a rebuild. Costs a week of pinky strength and pays for itself.',
   },
   {
     id: 'G4', name: 'G', full: 'G major (4-finger)', group: 'Major',
@@ -105,10 +105,13 @@ export const CHORDS = [
   },
   {
     id: 'A7', name: 'A7', full: 'A dominant 7th', group: '7th',
-    // Index and ring, the two fingers A already has on those strings, so A -> A7
-    // is one finger lifting rather than a re-grip.
-    frets: [-1, 0, 2, 0, 2, 0], fingers: [0, 0, 1, 0, 3, 0],
-    tip: 'A with the middle finger lifted off the G string — nothing else moves. A great stepping stone while the full A shape is still cramped.',
+    // Middle and ring, the published fingering — and the one the blues wants.
+    // Deriving it from A instead (index and ring, lift the middle) reads neatly
+    // but costs more than it saves: A -> A7 is not a change this teaches, while
+    // A7 -> D7 and A7 -> E7 are both, and in both the middle pivots off the D
+    // string at the same fret. Fingered from A, those two rebuild the hand.
+    frets: [-1, 0, 2, 0, 2, 0], fingers: [0, 0, 2, 0, 3, 0],
+    tip: 'Two fingers, and easier than the full A. Keep the middle finger loose on the D string — it pivots straight across to D7 and E7 without changing fret.',
   },
   {
     id: 'D7', name: 'D7', full: 'D dominant 7th', group: '7th',
@@ -264,7 +267,7 @@ export const STAGES = [
   {
     id: 's3',
     title: 'G, C and D — the big three',
-    blurb: 'These three unlock more songs than anything else you will learn. The G → C change is the one worth grinding.',
+    blurb: 'These three unlock more songs than anything else you will learn. G → C is the one worth grinding, and it is a pivot, not a rebuild: the ring and middle cross to the next string without leaving their fret. Watch those two rather than trying to place all three at once.',
     chords: ['G', 'C', 'D'],
     changes: [['G', 'C'], ['C', 'D'], ['G', 'D']],
     goal: '30 changes per minute on each pair',
