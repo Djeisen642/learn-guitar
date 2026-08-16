@@ -210,7 +210,9 @@ export function targetRect(t, others, ppm, boardW) {
   const loX = stringX(Math.min(...t.strings), ppm);
   const hiX = stringX(Math.max(...t.strings), ppm);
 
-  // A classical's strings are already past the 10mm floor, so it never grows.
+  // Every neck here is under the 10mm floor, so every lane grows a little — a
+  // classical's 8.6mm least of all. The clamp is only so a wider neck than any
+  // of these couldn't grow the lane backwards into a negative rectangle.
   const grow = Math.max(0, ((LANE_MAX_MM - current.stringMM) / 2) * ppm);
   let left = loX - half - grow;
   let right = hiX + half + grow;

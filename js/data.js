@@ -217,7 +217,7 @@ export const CHORDS = [
     // the pinky to reach the high E, which crosses the hand over itself. This
     // way the ring also stays put on the B string coming from D.
     frets: [2, -1, 0, 2, 3, 2], fingers: [1, 0, 0, 2, 3, 4],
-    tip: 'The D triangle played one finger higher — middle, ring, pinky — which frees the index for the F#. Most players wrap the thumb over instead; either way it bridges G → D/F# → Em beautifully.',
+    tip: 'The D triangle handed to the top three fingers — middle on the G, ring on the B, pinky on the high E — which frees the index for the F#. Coming from D the ring never leaves the B string. Most players wrap the thumb over the top instead; either way it bridges G → D/F# → Em beautifully.',
   },
 
   // --- power chords ------------------------------------------------------

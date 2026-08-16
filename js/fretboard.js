@@ -104,7 +104,11 @@ export function FretboardView() {
     // headstock. Which frets carry them is a property of the one instrument in
     // the player's hands, not of guitars, so the pattern is its own setting.
     for (const n of inlays().frets) {
-      if (fretMM(n) * ppm >= boardH) continue;
+      // Against the dot's own position, not its fret wire. boardH is capped at
+      // fretMM(FRETS + 2), so testing the wire threw away the dot in the last
+      // cell on any screen tall enough to reach it — the 5th-fret dot could
+      // never be drawn at all, whatever the pattern said.
+      if (pressMM(n) * ppm >= boardH) continue;
       board.appendChild(h('div', {
         class: 'fb-inlay',
         style: `top:${pressMM(n) * ppm}px; left:${boardW / 2}px`,
@@ -176,6 +180,12 @@ export function FretboardView() {
 
     nameEl.textContent = chord.name;
     paintStat();
+    // Painted here, not at construction: these name what measure() just drew,
+    // and measure() is the only thing that reads the saved instrument. Set them
+    // earlier and a reload labels the board "Acoustic" while drawing whatever
+    // was saved, with no way to tell which one is lying.
+    paintGuitar();
+    paintDots();
     // Reflect the touches actually down. Passing [] here would re-arm the rep
     // detector while fingers are still on the glass, so a song could advance
     // twice off one press.
@@ -467,6 +477,18 @@ export function FretboardView() {
     haptics.tick();
   });
 
+  // Both instrument buttons step through a list and save the next entry. Written
+  // twice they had already drifted — one read its current position back out of
+  // the store, the other out of the module, and those disagree the moment a
+  // setting is unset. Stepping from what the button is actually showing is the
+  // one that can't be wrong, because that is what the player just read.
+  function cycleFrom(list, showing, key) {
+    const at = list.findIndex((x) => x.id === showing.id);
+    store.setSetting(key, list[(at + 1) % list.length].id);
+    paint();          // re-measures, redraws, and relabels both buttons
+    haptics.tick();
+  }
+
   // Which guitar is on the other side of the practice. A neck drawn at the size
   // of an instrument you don't own is worse than one that admits it scaled
   // down, because nothing on screen says it is wrong — so the answer is always
@@ -478,35 +500,23 @@ export function FretboardView() {
       + `${(g.scaleMM / 25.4).toFixed(2)}" scale, strings ${g.stringMM}mm apart. `
       + 'Tap for the next guitar.';
   }
-  guitarBtn.addEventListener('click', () => {
-    const at = GUITARS.findIndex((g) => g.id === store.getSetting('guitar', DEFAULT_GUITAR));
-    store.setSetting('guitar', GUITARS[(at + 1) % GUITARS.length].id);
-    paint();          // re-measures, so the frets move with the choice
-    paintGuitar();
-    haptics.tick();
-  });
+  guitarBtn.addEventListener('click', () => cycleFrom(GUITARS, guitar(), 'guitar'));
 
   // The dots are the one thing on this board a player checks against their own
   // neck without thinking about it, and both patterns are current on ordinary
-  // acoustics — so it is asked rather than guessed.
+  // acoustics — so it is asked rather than guessed. Only the 3rd-fret dot falls
+  // inside the slice a phone can show, so for the other patterns the button's
+  // own label is the answer; that is honest, because a real neck has nothing to
+  // show down here either.
   function paintDots() {
-    const p = inlays();
-    dotsBtn.textContent = p.name;
+    dotsBtn.textContent = inlays().name;
     dotsBtn.title = 'The frets your guitar has position dots on. Look at your own '
       + 'neck: if there is a dot at the 3rd fret, pick the pattern that starts there.';
   }
-  dotsBtn.addEventListener('click', () => {
-    const at = INLAYS.findIndex((p) => p.id === inlays().id);
-    store.setSetting('inlays', INLAYS[(at + 1) % INLAYS.length].id);
-    paint();
-    paintDots();
-    haptics.tick();
-  });
+  dotsBtn.addEventListener('click', () => cycleFrom(INLAYS, inlays(), 'inlays'));
 
   paintBuzz();
   paintJoin();
-  paintGuitar();
-  paintDots();
   paintList();
 
   // Measuring once is not enough: filling in the finger pips grows the header,
