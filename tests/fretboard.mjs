@@ -1,15 +1,22 @@
 // The fretboard's two promises, checked against reality.
 //
-//  1. It is a real neck, not a picture of one — frets and strings land where a
-//     25.5" guitar puts them, or the app says plainly that it scaled down.
+//  1. It is a real neck, not a picture of one — frets and strings land where
+//     the selected guitar puts them, or the app says plainly that it scaled
+//     down. "Life size" is a claim about one instrument, so changing which
+//     instrument has to actually move the frets.
 //  2. A chord only sounds when the shape is genuinely held. Adjacent targets sit
 //     ~7mm apart with a ~5mm touch tolerance, so one broad touch overlaps two of
 //     them; without one-to-one matching a sloppy shape would pass.
 
 import { SONGS, CHORD_BY_ID, strumSchedule } from '../js/data.js';
+import { GUITARS, DEFAULT_GUITAR } from '../js/neck.js';
 
 const PX_PER_MM = 6.05;             // must match js/fretboard.js
-const SCALE_MM = 647.7;
+// Which instrument the numbers below describe is read from the app; the fret
+// math is worked out here rather than imported, so the suite stays an
+// independent oracle for the geometry it is checking.
+const SHIPPED = GUITARS.find((g) => g.id === DEFAULT_GUITAR);
+const SCALE_MM = SHIPPED.scaleMM;
 const fretMM = (n) => SCALE_MM - SCALE_MM / Math.pow(2, n / 12);
 
 export async function run(browser, base, log) {
@@ -100,7 +107,7 @@ export async function run(browser, base, log) {
         if (off > 0.5) fail(`${name}: fret ${n} is ${off.toFixed(1)}mm off a real neck`);
       }
       const gap = mm(g.strings[1] - g.strings[0]);
-      if (Math.abs(gap - 7.3) > 0.2) fail(`${name}: string spacing ${gap.toFixed(1)}mm, real is 7.3mm`);
+      if (Math.abs(gap - SHIPPED.stringMM) > 0.2) fail(`${name}: string spacing ${gap.toFixed(1)}mm, a ${SHIPPED.full} is ${SHIPPED.stringMM}mm`);
       if (!/life size/.test(g.stat)) fail(`${name}: at life size but says "${g.stat}"`);
       pass(`${name}: life size — neck ${mm(g.width).toFixed(1)}mm wide, frets true to 0.5mm`);
     } else {
@@ -176,7 +183,7 @@ export async function run(browser, base, log) {
       else {
         const wide = boxed.w / PX_PER_MM;
         const tall = boxed.h / PX_PER_MM;
-        if (wide > 7.6) fail(`${name}: boxed-in target ${wide.toFixed(1)}mm wide, past the 7.3mm string lane`);
+        if (wide > SHIPPED.stringMM + 0.3) fail(`${name}: boxed-in target ${wide.toFixed(1)}mm wide, past the ${SHIPPED.stringMM}mm string lane`);
         else if (tall < 28) fail(`${name}: target ${tall.toFixed(1)}mm tall, fret cell is ~34mm`);
         else pass(`${name}: boxed-in target ${wide.toFixed(1)}×${tall.toFixed(1)}mm — full cell, never past the lane`);
       }
@@ -212,6 +219,155 @@ export async function run(browser, base, log) {
       if (off) fail(`${name}: ${id} has ${off} finger target(s) off the board`);
     }
     await page.close();
+  }
+
+  // --- the neck is the player's guitar ------------------------------------
+  // Drawn against the wrong instrument, life size is worse than a diagram: the
+  // hand learns a shape it then has to unlearn, and nothing on screen says so.
+  // Picking a guitar has to really move the frets and the position dots.
+  {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+    page.on('pageerror', (e) => fail(`pageerror: ${e.message}`));
+    await page.goto(`${base}#/play`, { waitUntil: 'networkidle' });
+    await page.waitForTimeout(600);
+
+    const read = () => page.evaluate(() => ({
+      name: document.querySelector('.fb-guitar')?.textContent,
+      frets: [...document.querySelectorAll('.fb-fret')].map((f) => parseFloat(f.style.top)),
+      inlays: [...document.querySelectorAll('.fb-inlay')].map((f) => parseFloat(f.style.top)),
+    }));
+    // Which fret cell a dot sits in, counted off the wires actually drawn — so
+    // this holds whether or not the board came out life size.
+    const cellOf = (top, frets) => frets.filter((f) => f < top).length + 1;
+    const dots = (g) => g.inlays.map((t) => cellOf(t, g.frets));
+
+    // Walk the whole list by tapping, stopping when it comes back around.
+    const seen = [];
+    for (let i = 0; i < 12; i++) {
+      const g = await read();
+      if (!g.name) break;
+      if (seen.some((s) => s.name === g.name)) break;
+      seen.push(g);
+      await page.locator('.fb-guitar').click();
+      await page.waitForTimeout(150);
+    }
+
+    if (seen.length < 4) {
+      fail(`only ${seen.length} guitar(s) to choose from`);
+    } else {
+      pass(`${seen.length} guitars offered, and the picker cycles back around (${seen.map((g) => g.name).join(', ')})`);
+
+      // The default is what most people learning from a phone are holding.
+      if (seen[0].name !== 'Acoustic') fail(`the neck starts as "${seen[0].name}", not the steel-string acoustic`);
+      else pass('the neck starts as a steel-string acoustic');
+
+      // A scale length you can't see is a scale length nobody can trust: the
+      // shortest neck's 1st fret has to sit visibly nearer the nut.
+      const first = seen.map((g) => g.frets[0]);
+      const spread = Math.max(...first) - Math.min(...first);
+      if (spread < 5) fail(`every guitar puts fret 1 within ${spread.toFixed(1)}px — the choice isn't reaching the geometry`);
+      else pass(`fret 1 moves ${spread.toFixed(1)}px (${(spread / PX_PER_MM).toFixed(1)}mm) across the guitars`);
+
+      // The dot at the 3rd fret is the mismatch a player spots without a ruler,
+      // so each guitar has to start on the pattern it usually ships with.
+      if (dots(seen[0]).includes(3)) fail('the acoustic neck starts with an electric\'s 3rd-fret dot');
+      else if (!seen.some((g) => dots(g).includes(3))) fail('no guitar in the list starts with a 3rd-fret dot');
+      else pass('each guitar starts on the dot pattern it usually ships with');
+    }
+
+    // ...but the pattern is not a fact about the body. Both conventions are
+    // current on ordinary steel-string acoustics, so it has to be settable on
+    // its own, and the answer has to outlive switching guitars — the player's
+    // neck didn't change when they corrected the scale length.
+    {
+      await page.evaluate(() => localStorage.clear());
+      await page.reload({ waitUntil: 'networkidle' });
+      await page.waitForTimeout(600);
+
+      const base0 = await read();
+      const patterns = [];
+      for (let i = 0; i < 6; i++) {
+        const g = await read();
+        const name = await page.locator('.fb-dots').textContent();
+        if (patterns.some((p) => p.name === name)) break;
+        patterns.push({ name, cells: dots(g) });
+        await page.locator('.fb-dots').click();
+        await page.waitForTimeout(150);
+      }
+      const withDot3 = patterns.find((p) => p.cells.includes(3));
+      if (patterns.length < 2) fail(`the dot pattern only offers ${patterns.length} option(s)`);
+      else if (!withDot3) fail('the acoustic can never be given a 3rd-fret dot');
+      else pass(`the dot pattern is settable on its own (${patterns.map((p) => p.name).join(', ')})`);
+
+      // Choosing dots must not quietly move the frets, and vice versa.
+      const now = await read();
+      if (Math.abs(now.frets[0] - base0.frets[0]) > 0.5) fail('changing the dot pattern moved the frets');
+      else pass('changing the dot pattern leaves the scale length alone');
+
+      // Bounded, because npm test is this repo's only gate: a suite that hangs
+      // waiting for a state the app can no longer reach reports nothing at all,
+      // which is strictly worse than reporting the failure.
+      const tapUntil = async (sel, done, what) => {
+        for (let i = 0; i < 12; i++) {
+          if (await done()) return true;
+          await page.locator(sel).click();
+          await page.waitForTimeout(150);
+        }
+        fail(`${what} never came up after 12 taps of ${sel}`);
+        return false;
+      };
+
+      // Set the 3rd-fret pattern, then switch guitars: the dots must survive.
+      if (await tapUntil('.fb-dots', async () => dots(await read()).includes(3), 'a 3rd-fret dot')
+        && await tapUntil('.fb-guitar', async () => (await read()).name === 'Electric', 'the electric')
+        && await tapUntil('.fb-guitar', async () => (await read()).name === 'Acoustic', 'the acoustic again')) {
+        if (!dots(await read()).includes(3)) fail('picking a guitar threw away the chosen dot pattern');
+        else pass('a chosen dot pattern survives switching guitars');
+      }
+    }
+
+    // Both buttons name what the board is actually drawn as. They used to be
+    // labeled once at construction, before the first measure() had read the
+    // saved instrument, so a reload said "Acoustic" over a classical neck and
+    // the next tap appeared to do nothing.
+    {
+      // The shortest neck in the list, so the frets have to move visibly too.
+      const want = GUITARS.reduce((a, b) => (b.scaleMM < a.scaleMM ? b : a));
+      await page.evaluate((id) => {
+        const k = 'learn-guitar/v1';
+        const s = JSON.parse(localStorage.getItem(k) || '{}');
+        s.settings = { ...s.settings, guitar: id };
+        localStorage.setItem(k, JSON.stringify(s));
+      }, want.id);
+      await page.reload({ waitUntil: 'networkidle' });
+      await page.waitForTimeout(600);
+
+      const g = await read();
+      // Where fret 1 lands if the board really is that guitar at life size.
+      const at1 = (want.scaleMM - want.scaleMM / Math.pow(2, 1 / 12)) * PX_PER_MM;
+      if (g.name !== want.name) fail(`saved guitar "${want.name}" but the button reads "${g.name}" after a reload`);
+      else if (Math.abs(g.frets[0] - at1) > 2) fail(`the button says "${g.name}" but fret 1 is at ${g.frets[0].toFixed(0)}px, not the ${at1.toFixed(0)}px that guitar puts it at`);
+      else pass(`a saved guitar survives a reload and the button agrees with the board (${g.name})`);
+    }
+    await page.close();
+
+    // The dot in the last drawn cell must survive. boardH is capped at
+    // fretMM(FRETS + 2), so a guard testing that fret's *wire* is true by
+    // definition and the 5th-fret dot could never be drawn on any screen —
+    // which made the shipped acoustic pattern silently draw nothing anywhere.
+    {
+      const tall = await browser.newPage({ viewport: { width: 390, height: 1400 }, isMobile: true, hasTouch: true });
+      await tall.goto(`${base}#/play`, { waitUntil: 'networkidle' });
+      await tall.waitForTimeout(700);
+      const g = await tall.evaluate(() => ({
+        frets: [...document.querySelectorAll('.fb-fret')].map((f) => parseFloat(f.style.top)),
+        inlays: [...document.querySelectorAll('.fb-inlay')].map((f) => parseFloat(f.style.top)),
+      }));
+      const cells = g.inlays.map((t) => cellOf(t, g.frets));
+      if (!cells.includes(5)) fail(`a board reaching fret ${g.frets.length} draws no 5th-fret dot (cells ${cells.join(',') || 'none'})`);
+      else pass(`the 5th-fret dot is drawn once the board reaches it (cells ${cells.join(',')})`);
+      await tall.close();
+    }
   }
 
   // --- the shape must actually be held -------------------------------------

@@ -16,7 +16,9 @@ import { h, fill } from './dom.js';
 import { onLeave } from './lifecycle.js';
 import { notePractice } from './chrome.js';
 import {
-  FRETS, MARKER_PX, fitBoard, fretMM, pressMM, stringX, targetRect, matchTouches, sizePercent,
+  FRETS, MARKER_PX, GUITARS, DEFAULT_GUITAR, guitar, setGuitar,
+  INLAYS, inlays, setInlays,
+  fitBoard, fretMM, pressMM, stringX, targetRect, matchTouches, sizePercent,
 } from './neck.js';
 import { targetsFor, targetLabel } from './shapes.js';
 import { createPlayback, cycleSpeed, speed, SPEED_LABEL } from './playback.js';
@@ -65,6 +67,8 @@ export function FretboardView() {
   const speedBtn = h('button', { class: 'fb-buzz fb-speed', type: 'button', hidden: true });
   const buzzBtn = h('button', { type: 'button', class: 'fb-buzz' });
   const joinBtn = h('button', { type: 'button', class: 'fb-buzz fb-join' });
+  const guitarBtn = h('button', { type: 'button', class: 'fb-buzz fb-guitar' });
+  const dotsBtn = h('button', { type: 'button', class: 'fb-buzz fb-dots' });
 
   const player = createPlayback({
     onPlayingChange: (on) => hearBtn.classList.toggle('is-playing', on),
@@ -73,6 +77,11 @@ export function FretboardView() {
 
   // --- drawing the neck ----------------------------------------------------
   function measure() {
+    // The one place the saved instrument reaches the geometry. Everything below
+    // is sized from it, so re-reading it here means a change to the setting
+    // takes effect on the next paint and nowhere else has to remember to.
+    setGuitar(store.getSetting('guitar', DEFAULT_GUITAR));
+    setInlays(store.getSetting('inlays', null));
     // MARKER_PX must match .fb's top margin, which is layout the board sits
     // below rather than inside.
     const avail = stage.getBoundingClientRect().height - MARKER_PX;
@@ -91,10 +100,15 @@ export function FretboardView() {
     for (let n = 1; n <= FRETS + 2 && fretMM(n) * ppm <= boardH + 1; n++) {
       board.appendChild(h('div', { class: 'fb-fret', style: `top:${fretMM(n) * ppm}px` }));
     }
-    // Real necks carry position dots at the 3rd and 5th frets; that's how you
-    // find your place without looking at the headstock.
-    for (const n of [3, 5]) {
-      if (fretMM(n) * ppm >= boardH) continue;
+    // Position dots are how you find your place without looking at the
+    // headstock. Which frets carry them is a property of the one instrument in
+    // the player's hands, not of guitars, so the pattern is its own setting.
+    for (const n of inlays().frets) {
+      // Against the dot's own position, not its fret wire. boardH is capped at
+      // fretMM(FRETS + 2), so testing the wire threw away the dot in the last
+      // cell on any screen tall enough to reach it — the 5th-fret dot could
+      // never be drawn at all, whatever the pattern said.
+      if (pressMM(n) * ppm >= boardH) continue;
       board.appendChild(h('div', {
         class: 'fb-inlay',
         style: `top:${pressMM(n) * ppm}px; left:${boardW / 2}px`,
@@ -166,6 +180,12 @@ export function FretboardView() {
 
     nameEl.textContent = chord.name;
     paintStat();
+    // Painted here, not at construction: these name what measure() just drew,
+    // and measure() is the only thing that reads the saved instrument. Set them
+    // earlier and a reload labels the board "Acoustic" while drawing whatever
+    // was saved, with no way to tell which one is lying.
+    paintGuitar();
+    paintDots();
     // Reflect the touches actually down. Passing [] here would re-arm the rep
     // detector while fingers are still on the glass, so a song could advance
     // twice off one press.
@@ -217,7 +237,7 @@ export function FretboardView() {
     const scale = sizePercent(ppm);
     const size = scale >= 99 ? 'life size' : `${scale}% size`;
     statEl.title = scale >= 99
-      ? 'Shown at the size of a real 25.5" neck'
+      ? `Shown at the size of a real ${guitar().full} neck`
       : `This screen is too small for a real neck, so it is shown at ${scale}%`;
 
     for (const el of [nextEl, progressEl, hearBtn, speedBtn]) el.hidden = !song;
@@ -457,6 +477,44 @@ export function FretboardView() {
     haptics.tick();
   });
 
+  // Both instrument buttons step through a list and save the next entry. Written
+  // twice they had already drifted — one read its current position back out of
+  // the store, the other out of the module, and those disagree the moment a
+  // setting is unset. Stepping from what the button is actually showing is the
+  // one that can't be wrong, because that is what the player just read.
+  function cycleFrom(list, showing, key) {
+    const at = list.findIndex((x) => x.id === showing.id);
+    store.setSetting(key, list[(at + 1) % list.length].id);
+    paint();          // re-measures, redraws, and relabels both buttons
+    haptics.tick();
+  }
+
+  // Which guitar is on the other side of the practice. A neck drawn at the size
+  // of an instrument you don't own is worse than one that admits it scaled
+  // down, because nothing on screen says it is wrong — so the answer is always
+  // visible here rather than buried in a settings screen.
+  function paintGuitar() {
+    const g = guitar();
+    guitarBtn.textContent = g.name;
+    guitarBtn.title = `Drawn as a ${g.full} neck: `
+      + `${(g.scaleMM / 25.4).toFixed(2)}" scale, strings ${g.stringMM}mm apart. `
+      + 'Tap for the next guitar.';
+  }
+  guitarBtn.addEventListener('click', () => cycleFrom(GUITARS, guitar(), 'guitar'));
+
+  // The dots are the one thing on this board a player checks against their own
+  // neck without thinking about it, and both patterns are current on ordinary
+  // acoustics — so it is asked rather than guessed. Only the 3rd-fret dot falls
+  // inside the slice a phone can show, so for the other patterns the button's
+  // own label is the answer; that is honest, because a real neck has nothing to
+  // show down here either.
+  function paintDots() {
+    dotsBtn.textContent = inlays().name;
+    dotsBtn.title = 'The frets your guitar has position dots on. Look at your own '
+      + 'neck: if there is a dot at the 3rd fret, pick the pattern that starts there.';
+  }
+  dotsBtn.addEventListener('click', () => cycleFrom(INLAYS, inlays(), 'inlays'));
+
   paintBuzz();
   paintJoin();
   paintList();
@@ -488,6 +546,8 @@ export function FretboardView() {
       hearBtn,
       speedBtn,
       strip,
+      guitarBtn,
+      dotsBtn,
       joinBtn,
       buzzBtn,
     ),

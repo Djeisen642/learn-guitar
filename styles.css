@@ -582,6 +582,9 @@ body.play-mode .topbar { display: none; }
 }
 .fb-buzz.is-on { color: var(--accent); border-color: var(--accent); }
 .fb-buzz.is-warn { color: var(--text-dim); border-style: dashed; opacity: .75; }
+/* Not toggles: these name what the neck is drawn as, so they have to read as
+   answered rather than as off switches. */
+.fb-guitar, .fb-dots { color: var(--text); }
 
 /* --- songs --------------------------------------------------------------- */
 
